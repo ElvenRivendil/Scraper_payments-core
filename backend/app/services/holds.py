@@ -142,15 +142,25 @@ def _ensure_hold_active_for_action(session: Session, hold: Hold, *, action_name:
         raise HoldValidationError("HOLD_EXPIRED", "Hold has expired", status_code=409)
 
 
-def _load_hold_for_update(session: Session, hold_id: UUID) -> Hold:
-    hold = session.execute(select(Hold).where(Hold.id == hold_id).with_for_update()).scalar_one_or_none()
+def _load_hold_for_update(session: Session, hold_id: UUID, *, owner_id: UUID) -> Hold:
+    hold = session.execute(
+        select(Hold)
+        .join(Account, Account.id == Hold.account_id)
+        .where(Hold.id == hold_id, Account.owner_id == owner_id)
+        .with_for_update()
+    ).scalar_one_or_none()
     if hold is None:
         raise HoldValidationError("HOLD_NOT_FOUND", "Hold was not found", status_code=404)
     return hold
 
 
-def list_holds(session: Session) -> list[dict]:
-    holds = session.execute(select(Hold).order_by(Hold.created_at.desc(), Hold.id.desc())).scalars().all()
+def list_holds(session: Session, owner_id: UUID) -> list[dict]:
+    holds = session.execute(
+        select(Hold)
+        .join(Account, Account.id == Hold.account_id)
+        .where(Account.owner_id == owner_id)
+        .order_by(Hold.created_at.desc(), Hold.id.desc())
+    ).scalars().all()
     changed = False
     for hold in holds:
         if _expire_hold_if_needed(session, hold, reason="holds.list"):
@@ -161,16 +171,22 @@ def list_holds(session: Session) -> list[dict]:
     return [_hold_payload(hold) for hold in holds]
 
 
-def authorize_hold(session: Session, *, idempotency_key: str, payload: HoldAuthorizeCreate) -> HoldResult:
+def authorize_hold(session: Session, *, idempotency_key: str, payload: HoldAuthorizeCreate, owner_id: UUID) -> HoldResult:
     scope = "holds.authorize"
     request_payload = payload.model_dump(mode="json")
+
+    account = session.execute(
+        select(Account).where(
+            Account.id == payload.account_id,
+            Account.owner_id == owner_id,
+        )
+    ).scalar_one_or_none()
+    if account is None:
+        raise HoldValidationError("ACCOUNT_NOT_FOUND", "Account was not found", status_code=404)
+
     replay = _idempotent_replay_or_conflict(session, idempotency_key=idempotency_key, scope=scope, payload=request_payload)
     if replay is not None:
         return replay
-
-    account = session.get(Account, payload.account_id)
-    if account is None:
-        raise HoldValidationError("ACCOUNT_NOT_FOUND", "Account was not found")
 
     if account.currency_code != payload.currency_code:
         raise HoldValidationError("CURRENCY_MISMATCH", "Account currency does not match hold currency", status_code=409)
@@ -248,14 +264,14 @@ def authorize_hold(session: Session, *, idempotency_key: str, payload: HoldAutho
     return HoldResult(payload=response_payload, created=True)
 
 
-def capture_hold(session: Session, *, hold_id: UUID, idempotency_key: str, payload: HoldCaptureCreate) -> HoldResult:
+def capture_hold(session: Session, *, hold_id: UUID, idempotency_key: str, payload: HoldCaptureCreate, owner_id: UUID) -> HoldResult:
     scope = f"holds.capture:{hold_id}"
     request_payload = payload.model_dump(mode="json")
+    hold = _load_hold_for_update(session, hold_id, owner_id=owner_id)
+
     replay = _idempotent_replay_or_conflict(session, idempotency_key=idempotency_key, scope=scope, payload=request_payload)
     if replay is not None:
         return replay
-
-    hold = _load_hold_for_update(session, hold_id)
     _ensure_hold_active_for_action(session, hold, action_name="holds.capture")
 
     if hold.status != HoldStatus.AUTHORIZED:
@@ -370,14 +386,14 @@ def capture_hold(session: Session, *, hold_id: UUID, idempotency_key: str, paylo
     return HoldResult(payload=response_payload, created=True)
 
 
-def release_hold(session: Session, *, hold_id: UUID, idempotency_key: str, payload: HoldReleaseCreate) -> HoldResult:
+def release_hold(session: Session, *, hold_id: UUID, idempotency_key: str, payload: HoldReleaseCreate, owner_id: UUID) -> HoldResult:
     scope = f"holds.release:{hold_id}"
     request_payload = payload.model_dump(mode="json")
+    hold = _load_hold_for_update(session, hold_id, owner_id=owner_id)
+
     replay = _idempotent_replay_or_conflict(session, idempotency_key=idempotency_key, scope=scope, payload=request_payload)
     if replay is not None:
         return replay
-
-    hold = _load_hold_for_update(session, hold_id)
     _ensure_hold_active_for_action(session, hold, action_name="holds.release")
 
     if hold.status != HoldStatus.AUTHORIZED:

@@ -29,6 +29,11 @@ export type {
 
 export const API_BASE = import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_URL ?? "http://localhost:18000";
 const DEMO_SECRET = import.meta.env.VITE_DEMO_SECRET;
+let accessToken: string | null = null;
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token?.trim() || null;
+}
 
 type TransferPayload = {
   from_account_id: string;
@@ -66,12 +71,18 @@ function demoSecretHeaders(): Record<string, string> {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  headers.set("Content-Type", "application/json");
+
+  if (accessToken) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  } else {
+    headers.delete("Authorization");
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
 
   if (!response.ok) {

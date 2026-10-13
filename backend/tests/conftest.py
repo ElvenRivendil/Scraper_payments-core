@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from uuid import UUID
 from tempfile import TemporaryDirectory
 
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.auth import AuthenticatedUser, require_current_user
 from app.core.config import Settings
 from app.core.db import Base, create_engine_and_session
 from app.main import create_app
@@ -28,10 +30,11 @@ def app(temp_database_url: str):
         cors_origins=["http://testserver"],
     )
     application = create_app(settings)
+    application.dependency_overrides[require_current_user] = lambda: AuthenticatedUser(id=UUID(int=1))
     engine = application.state.engine
     Base.metadata.create_all(engine)
     with application.state.session_factory() as session:
-        seed_demo_data(session)
+        seed_demo_data(session, owner_id=UUID(int=1))
     return application
 
 

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+from app.core.auth import AuthenticatedUser, require_current_user
 from app.core.db import get_db
 from app.core.guards import require_write_access
 from app.schemas import TransferCreate
@@ -16,6 +17,7 @@ router = APIRouter(prefix="/transfers", tags=["transfers"])
 def post_transfer(
     transfer: TransferCreate,
     request: Request,
+    current_user: AuthenticatedUser = Depends(require_current_user),
     session: Session = Depends(get_db),
     idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
@@ -24,7 +26,7 @@ def post_transfer(
         raise HTTPException(status_code=400, detail="Idempotency-Key header is required")
 
     try:
-        result = create_transfer(session, idempotency_key=idempotency_key, transfer=transfer)
+        result = create_transfer(session, idempotency_key=idempotency_key, transfer=transfer, owner_id=current_user.id)
     except IdempotencyConflictError as error:
         return JSONResponse(status_code=409, content={"code": "IDEMPOTENCY_KEY_REUSED", "message": str(error)})
     except TransferConflictError as error:
@@ -38,6 +40,8 @@ def post_transfer(
             },
         )
     except TransferValidationError as error:
+        if error.code == "ACCOUNT_NOT_FOUND":
+            return JSONResponse(status_code=404, content={"code": error.code, "message": str(error)})
         conflict_codes = {"CURRENCY_MISMATCH"}
         status_code = 409 if error.code in conflict_codes else 400
         return JSONResponse(status_code=status_code, content={"code": error.code, "message": str(error)})

@@ -28,10 +28,15 @@ services:
   backend:
     build:
       context: ../backend
+    volumes:
+      - ../backend:/app
+    extra_hosts:
+      - "host.docker.internal:172.20.0.1"
     environment:
       APP_ENV: development
       DATABASE_URL: postgresql+psycopg://payments:payments@postgres:5432/payments
       REDIS_URL: redis://redis:6379/0
+      HELM_AUTH_BASE_URL: http://host.docker.internal:8001
       DEMO_SECRET: ${PAYMENTS_DEMO_SECRET:-change-me}
       AUTO_SEED: "true"
     depends_on:
@@ -47,10 +52,15 @@ services:
   worker:
     build:
       context: ../backend
+    volumes:
+      - ../backend:/app
+    extra_hosts:
+      - "host.docker.internal:172.20.0.1"
     environment:
       APP_ENV: development
       DATABASE_URL: postgresql+psycopg://payments:payments@postgres:5432/payments
       REDIS_URL: redis://redis:6379/0
+      HELM_AUTH_BASE_URL: http://host.docker.internal:8001
       DEMO_SECRET: ${PAYMENTS_DEMO_SECRET:-change-me}
       AUTO_SEED: "true"
     depends_on:
@@ -59,11 +69,14 @@ services:
       redis:
         condition: service_healthy
     command: >-
-      sh -c "celery -A app.workers.celery_app.celery_app worker --loglevel=info --concurrency=1"
+      sh -c "watchfiles --filter python --run-process 'celery -A app.workers.celery_app.celery_app worker --loglevel=info --concurrency=1' /app/app"
 
   dashboard:
     build:
       context: ../dashboard
+    volumes:
+      - ../dashboard:/app
+      - dashboard_node_modules:/app/node_modules
     environment:
       VITE_API_URL: http://localhost:${PAYMENTS_BACKEND_PORT:-18000}
       VITE_DEMO_SECRET: ${PAYMENTS_DEMO_SECRET:-change-me}
@@ -75,3 +88,4 @@ services:
 
 volumes:
   postgres_data:
+  dashboard_node_modules:

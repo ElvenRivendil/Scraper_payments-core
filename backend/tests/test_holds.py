@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 
+from app.core.auth import AuthenticatedUser, require_current_user
 from app.models import EscrowAccount, Hold, HoldStatus
 from backend.tests.helpers import assert_tx_balanced
 
@@ -192,3 +193,118 @@ def test_expired_hold_is_persisted_and_blocks_capture(client):
     with client.app.state.session_factory() as session:
         hold = session.get(Hold, hold_id)
         assert hold.status == HoldStatus.EXPIRED
+
+def test_list_holds_excludes_another_users_holds(client):
+    source = _account_by_name(client, "INR Alice Wallet")
+    response = client.post(
+        "/holds/authorize",
+        json={
+            "account_id": source["id"],
+            "currency_code": "INR",
+            "amount_minor": 400,
+            "ttl_seconds": 900,
+        },
+        headers={"Idempotency-Key": "hold-owner-list-001"},
+    )
+    assert response.status_code == 201
+
+    original_override = client.app.dependency_overrides[require_current_user]
+    client.app.dependency_overrides[require_current_user] = (
+        lambda: AuthenticatedUser(id=UUID(int=2))
+    )
+    try:
+        response = client.get("/holds")
+    finally:
+        client.app.dependency_overrides[require_current_user] = original_override
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_authorize_rejects_account_owned_by_another_user(client):
+    source = _account_by_name(client, "INR Alice Wallet")
+    original_override = client.app.dependency_overrides[require_current_user]
+    client.app.dependency_overrides[require_current_user] = (
+        lambda: AuthenticatedUser(id=UUID(int=2))
+    )
+    try:
+        response = client.post(
+            "/holds/authorize",
+            json={
+                "account_id": source["id"],
+                "currency_code": "INR",
+                "amount_minor": 400,
+                "ttl_seconds": 900,
+            },
+            headers={"Idempotency-Key": "hold-owner-authorize-001"},
+        )
+    finally:
+        client.app.dependency_overrides[require_current_user] = original_override
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "ACCOUNT_NOT_FOUND"
+
+
+def test_capture_rejects_another_users_hold(client):
+    source = _account_by_name(client, "INR Alice Wallet")
+    created = client.post(
+        "/holds/authorize",
+        json={
+            "account_id": source["id"],
+            "currency_code": "INR",
+            "amount_minor": 400,
+            "ttl_seconds": 900,
+        },
+        headers={"Idempotency-Key": "hold-owner-capture-create-001"},
+    )
+    assert created.status_code == 201
+    hold_id = created.json()["hold"]["id"]
+
+    original_override = client.app.dependency_overrides[require_current_user]
+    client.app.dependency_overrides[require_current_user] = (
+        lambda: AuthenticatedUser(id=UUID(int=2))
+    )
+    try:
+        response = client.post(
+            f"/holds/{hold_id}/capture",
+            json={"currency_code": "INR"},
+            headers={"Idempotency-Key": "hold-owner-capture-001"},
+        )
+    finally:
+        client.app.dependency_overrides[require_current_user] = original_override
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "HOLD_NOT_FOUND"
+
+
+def test_release_rejects_another_users_hold(client):
+    source = _account_by_name(client, "INR Alice Wallet")
+    created = client.post(
+        "/holds/authorize",
+        json={
+            "account_id": source["id"],
+            "currency_code": "INR",
+            "amount_minor": 400,
+            "ttl_seconds": 900,
+        },
+        headers={"Idempotency-Key": "hold-owner-release-create-001"},
+    )
+    assert created.status_code == 201
+    hold_id = created.json()["hold"]["id"]
+
+    original_override = client.app.dependency_overrides[require_current_user]
+    client.app.dependency_overrides[require_current_user] = (
+        lambda: AuthenticatedUser(id=UUID(int=2))
+    )
+    try:
+        response = client.post(
+            f"/holds/{hold_id}/release",
+            json={"currency_code": "INR"},
+            headers={"Idempotency-Key": "hold-owner-release-001"},
+        )
+    finally:
+        client.app.dependency_overrides[require_current_user] = original_override
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "HOLD_NOT_FOUND"
+

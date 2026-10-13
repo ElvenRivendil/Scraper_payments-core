@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.accounts import router as accounts_router
@@ -15,6 +15,7 @@ from app.api.routes.reconcile import router as reconcile_router
 from app.api.routes.transactions import router as transactions_router
 from app.api.routes.transfers import router as transfers_router
 from app.api.routes.webhooks import router as webhooks_router
+from app.core.auth import require_current_user
 from app.core.config import Settings, get_settings
 from app.core.db import create_engine_and_session
 from app.core.logging import configure_logging
@@ -72,16 +73,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(capabilities_router)
-    app.include_router(accounts_router)
+    app.include_router(accounts_router, dependencies=[Depends(require_current_user)])
     app.include_router(currencies_router)
-    app.include_router(holds_router)
-    app.include_router(transfers_router)
-    app.include_router(transactions_router)
-    app.include_router(webhooks_router)
-    app.include_router(dlq_router)
-    app.include_router(reconcile_router)
+    app.include_router(holds_router, dependencies=[Depends(require_current_user)])
+    app.include_router(transfers_router, dependencies=[Depends(require_current_user)])
+    app.include_router(transactions_router, dependencies=[Depends(require_current_user)])
+    app.include_router(webhooks_router, dependencies=[Depends(require_current_user)])
+    app.include_router(dlq_router, dependencies=[Depends(require_current_user)])
+    app.include_router(reconcile_router, dependencies=[Depends(require_current_user)])
     app.include_router(demo_router)
-    app.include_router(metrics_router)
+    app.include_router(metrics_router, dependencies=[Depends(require_current_user)])
 
     return app
 

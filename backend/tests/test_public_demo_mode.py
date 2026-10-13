@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from uuid import UUID
 from tempfile import TemporaryDirectory
 
 from fastapi.testclient import TestClient
@@ -15,7 +16,7 @@ def _client_for(settings: Settings):
     app = create_app(settings)
     Base.metadata.create_all(app.state.engine)
     with app.state.session_factory() as session:
-        seed_demo_data(session)
+        seed_demo_data(session, owner_id=UUID(int=0) if settings.public_demo else UUID(int=1))
     return TestClient(app)
 
 
@@ -33,12 +34,22 @@ def test_public_demo_capabilities_and_read_endpoints_are_available():
             capabilities = client.get("/capabilities")
             stats = client.get("/stats")
             accounts = client.get("/accounts")
+            metrics = client.get("/metrics")
+            webhook_events = client.get("/webhooks/events")
+            dlq_events = client.get("/dlq")
+            reconcile_latest = client.get("/reconcile/latest")
 
     assert capabilities.status_code == 200
     assert capabilities.json()["read_only"] is True
     assert capabilities.json()["writes_enabled"] is False
+    assert capabilities.json()["replay_enabled"] is False
+    assert capabilities.json()["reconcile_run_enabled"] is False
     assert stats.status_code == 200
     assert accounts.status_code == 200
+    assert metrics.status_code == 404
+    assert webhook_events.status_code == 404
+    assert dlq_events.status_code == 404
+    assert reconcile_latest.status_code == 404
 
 
 def test_public_demo_blocks_mutating_control_plane_endpoints():

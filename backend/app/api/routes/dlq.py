@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -14,7 +14,9 @@ router = APIRouter(prefix="/dlq", tags=["dlq"])
 
 
 @router.get("", response_model=list[DlqEventOut])
-def read_dlq_events(session: Session = Depends(get_db)):
+def read_dlq_events(request: Request, session: Session = Depends(get_db)):
+    if getattr(request.state, 'public_demo', True):
+        raise HTTPException(status_code=404, detail="Not found")
     events = list_dlq_events(session)
     return [
         {

@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     app_name: str = "payments-core"
+    helm_auth_base_url: str = "http://host.docker.internal:8001"
     app_env: str = "development"
     database_url: str = Field(default="postgresql+psycopg://payments:payments@localhost:5432/payments")
     redis_url: str = Field(default="redis://localhost:6379/0")

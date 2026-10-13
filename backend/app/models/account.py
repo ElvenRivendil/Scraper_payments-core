@@ -15,6 +15,7 @@ class Account(Base):
     __tablename__ = "accounts"
 
     id: Mapped[UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid4)
+    owner_id: Mapped[UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     currency_code: Mapped[str] = mapped_column(ForeignKey("currencies.code", ondelete="RESTRICT"), nullable=False, index=True)
     type: Mapped[AccountType] = mapped_column(SAEnum(AccountType, name="account_type"), nullable=False)

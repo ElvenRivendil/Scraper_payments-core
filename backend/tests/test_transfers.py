@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from app.core.auth import AuthenticatedUser, require_current_user
 from sqlalchemy import func, select
 
 from app.models import EscrowAccount, LedgerEntry
@@ -68,6 +69,38 @@ def test_transfer_is_idempotent_and_balanced(client):
             select(func.count()).select_from(LedgerEntry).where(LedgerEntry.tx_id == UUID(tx_id))
         ).scalar_one()
     assert entry_count == 2
+
+
+def test_transfer_rejects_source_owned_by_another_user(client):
+    source = client.post(
+        "/accounts",
+        json={"name": "INR Owner Source", "currency_code": "INR", "type": "USER"},
+    ).json()
+    destination = client.post(
+        "/accounts",
+        json={"name": "INR Other Destination", "currency_code": "INR", "type": "USER"},
+    ).json()
+
+    original_override = client.app.dependency_overrides[require_current_user]
+    client.app.dependency_overrides[require_current_user] = (
+        lambda: AuthenticatedUser(id=UUID(int=2))
+    )
+    try:
+        response = client.post(
+            "/transfers",
+            json={
+                "from_account_id": source["id"],
+                "to_account_id": destination["id"],
+                "amount_minor": 100,
+                "description": "Unauthorized transfer",
+            },
+            headers={"Idempotency-Key": "transfer-wrong-owner-001"},
+        )
+    finally:
+        client.app.dependency_overrides[require_current_user] = original_override
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "ACCOUNT_NOT_FOUND"
 
 
 def test_transfer_rejects_insufficient_funds(client):

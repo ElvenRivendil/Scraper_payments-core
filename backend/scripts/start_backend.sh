@@ -37,4 +37,4 @@ alembic upgrade head
 echo "Running alembic current after upgrade..."
 alembic current
 
-exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}"
+exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}" --reload --reload-dir /app/app

@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
+from app.core.auth import AuthenticatedUser, require_current_user
 from app.core.db import get_db
 from app.schemas import CapabilitiesOut, DashboardStatsOut
 from app.services.reconciliation import dashboard_stats
@@ -11,9 +12,12 @@ router = APIRouter(tags=["capabilities"])
 
 
 @router.get("/capabilities", response_model=CapabilitiesOut)
-def read_capabilities(request: Request):
+def read_capabilities(
+    request: Request,
+    current_user: AuthenticatedUser = Depends(require_current_user),
+):
     settings = request.app.state.settings
-    public_read_only = bool(settings.public_demo)
+    public_read_only = bool(request.state.public_demo)
     return {
         "public_demo": public_read_only,
         "read_only": public_read_only,

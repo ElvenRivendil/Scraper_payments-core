@@ -39,7 +39,8 @@ import {
   type TransactionSummary,
   type WebhookEventSummary,
 } from "./api/client";
-import { toUserMessage } from "./api/errors";
+import { ApiError, toUserMessage } from "./api/errors";
+import { initializeHelmAuth } from "./auth/helmAuthBridge";
 import { Button } from "./components/ui/Button";
 import { Card, StatCard } from "./components/ui/Card";
 import { Toast } from "./components/ui/Notice";
@@ -109,9 +110,14 @@ export function App() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [authMode, setAuthMode] = useState<"demo" | "authenticated" | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const refreshData = useCallback(async (reason: "manual" | "background" | "action" = "background") => {
+    if (authRequired && reason === "background") {
+      return;
+    }
     setIsRefreshing(true);
     if (reason === "manual") {
       setIsManualRefreshing(true);
@@ -139,11 +145,17 @@ export function App() {
       try {
         const report = await getReconcileLatest();
         setLatestReconcile(report);
-      } catch {
+      } catch (exception) {
+        if (exception instanceof ApiError && exception.status === 401) {
+          throw exception;
+        }
         setLatestReconcile(null);
       }
       setLastUpdatedAt(new Date());
     } catch (exception) {
+      if (exception instanceof ApiError && exception.status === 401) {
+        setAuthRequired(true);
+      }
       setError(toUserMessage(exception, "Unable to load dashboard data"));
     } finally {
       setIsLoading(false);
@@ -152,11 +164,11 @@ export function App() {
         setIsManualRefreshing(false);
       }
     }
-  }, []);
+  }, [authRequired]);
 
   const pollEnabled = useMemo(() => {
-    return ["overview", "webhooks", "dlq", "reconciliation"].includes(route.page);
-  }, [route.page]);
+    return !authRequired && ["overview", "webhooks", "dlq", "reconciliation"].includes(route.page);
+  }, [authRequired, route.page]);
 
   usePolling(
     async () => {
@@ -167,12 +179,24 @@ export function App() {
   );
 
   useEffect(() => {
+    let cancelled = false;
     const run = async () => {
       setIsLoading(true);
       setError(null);
+      const auth = await initializeHelmAuth();
+      if (cancelled) return;
+      if (auth.mode === "error") {
+        setError(auth.message);
+        setIsLoading(false);
+        return;
+      }
+      setAuthMode(auth.mode);
       await refreshData("background");
     };
     void run();
+    return () => {
+      cancelled = true;
+    };
   }, [refreshData]);
 
   useEffect(() => {
@@ -277,8 +301,10 @@ export function App() {
         <div className="ui-brand">
           <div className="ui-brand-mark"><Database size={18} /></div>
           <div className="ui-brand-copy">
-            <span className="ui-kicker">fintech demo</span>
-            <h1>payments-core</h1>
+            <span className="ui-kicker">
+              {authMode === "authenticated" ? "Scraper Fintech" : "fintech demo"}
+            </span>
+            <h1>{authMode === "authenticated" ? "Scraper Fintech" : "payments-core"}</h1>
             <p>Ledger, webhooks, and reconciliation control plane.</p>
           </div>
         </div>
@@ -348,7 +374,12 @@ export function App() {
             <Button variant="ghost" className="ui-collapse-button" onClick={() => setSidebarCollapsed((collapsed) => !collapsed)} aria-label="Collapse sidebar">
               {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
             </Button>
-            <Button variant="ghost" loading={isRefreshing}>
+            <Button
+              variant="ghost"
+              className={`ui-live-indicator${isRefreshing ? " is-syncing" : ""}`}
+              aria-label={isRefreshing ? "Synchronizing data" : "Live"}
+              title={isRefreshing ? "Synchronizing data" : "Live"}
+            >
               <Activity size={15} />
               {isRefreshing ? "Syncing" : "Live"}
             </Button>

@@ -18,7 +18,9 @@ def post_reconcile_run(request: Request, session: Session = Depends(get_db)):
 
 
 @router.get("/latest", response_model=ReconcileReportOut)
-def get_reconcile_latest(session: Session = Depends(get_db)):
+def get_reconcile_latest(request: Request, session: Session = Depends(get_db)):
+    if getattr(request.state, 'public_demo', True):
+        raise HTTPException(status_code=404, detail="Not found")
     report = latest_reconciliation(session)
     if report is None:
         raise HTTPException(status_code=404, detail={"code": "RECONCILE_NOT_FOUND", "message": "No reconciliation run found"})

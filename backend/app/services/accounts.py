@@ -30,8 +30,8 @@ def account_payload(account: Account, posted_balance_minor: int, held_balance_mi
     }
 
 
-def list_accounts(session: Session) -> list[dict]:
-    accounts = session.execute(select(Account).order_by(Account.created_at, Account.name)).scalars().all()
+def list_accounts(session: Session, owner_id: UUID) -> list[dict]:
+    accounts = session.execute(select(Account).where(Account.owner_id == owner_id).order_by(Account.created_at, Account.name)).scalars().all()
     payload: list[dict] = []
     for account in accounts:
         posted, held, _available = account_balances_minor(session, account.id)
@@ -39,8 +39,8 @@ def list_accounts(session: Session) -> list[dict]:
     return payload
 
 
-def get_account(session: Session, account_id: UUID) -> dict | None:
-    account = session.get(Account, account_id)
+def get_account(session: Session, account_id: UUID, owner_id: UUID) -> dict | None:
+    account = session.execute(select(Account).where(Account.id == account_id, Account.owner_id == owner_id)).scalar_one_or_none()
     if account is None:
         return None
 
@@ -48,7 +48,7 @@ def get_account(session: Session, account_id: UUID) -> dict | None:
     return account_payload(account, posted, held)
 
 
-def create_account(session: Session, payload: AccountCreate) -> dict:
+def create_account(session: Session, payload: AccountCreate, owner_id: UUID) -> dict:
     normalized_type = payload.type.upper()
     if normalized_type not in {AccountType.USER.value, AccountType.MERCHANT.value}:
         raise ValueError("ESCROW accounts are system-managed")
@@ -57,15 +57,15 @@ def create_account(session: Session, payload: AccountCreate) -> dict:
     if currency is None:
         raise ValueError("Currency not found")
 
-    account = Account(name=payload.name, currency_code=payload.currency_code, type=AccountType(normalized_type))
+    account = Account(name=payload.name, currency_code=payload.currency_code, type=AccountType(normalized_type), owner_id=owner_id)
     session.add(account)
     session.commit()
     session.refresh(account)
     return account_payload(account, 0, 0)
 
 
-def get_account_statement(session: Session, account_id: UUID, *, limit: int = 50) -> dict | None:
-    account = session.get(Account, account_id)
+def get_account_statement(session: Session, account_id: UUID, *, owner_id: UUID, limit: int = 50) -> dict | None:
+    account = session.execute(select(Account).where(Account.id == account_id, Account.owner_id == owner_id)).scalar_one_or_none()
     if account is None:
         return None
 

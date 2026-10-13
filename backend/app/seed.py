@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
+from uuid import UUID
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import SQLAlchemyError
@@ -31,7 +32,7 @@ from app.models import (
 logger = logging.getLogger(__name__)
 
 
-def seed_demo_data(session: Session) -> None:
+def seed_demo_data(session: Session, *, owner_id: UUID | None = None) -> None:
     try:
         has_seed_data = session.execute(select(func.count()).select_from(Currency)).scalar_one()
     except SQLAlchemyError:
@@ -46,11 +47,11 @@ def seed_demo_data(session: Session) -> None:
     session.flush()
 
     for currency_code in ["INR", "USD", "EUR"]:
-        mint = Account(name=f"{currency_code} Mint Source", currency_code=currency_code, type=AccountType.MERCHANT)
-        treasury = Account(name=f"{currency_code} Treasury", currency_code=currency_code, type=AccountType.MERCHANT)
-        alice = Account(name=f"{currency_code} Alice Wallet", currency_code=currency_code, type=AccountType.USER)
-        merchant = Account(name=f"{currency_code} Corner Shop", currency_code=currency_code, type=AccountType.MERCHANT)
-        escrow = Account(name=f"{currency_code} Escrow", currency_code=currency_code, type=AccountType.ESCROW)
+        mint = Account(name=f"{currency_code} Mint Source", currency_code=currency_code, type=AccountType.MERCHANT, owner_id=owner_id)
+        treasury = Account(name=f"{currency_code} Treasury", currency_code=currency_code, type=AccountType.MERCHANT, owner_id=owner_id)
+        alice = Account(name=f"{currency_code} Alice Wallet", currency_code=currency_code, type=AccountType.USER, owner_id=owner_id)
+        merchant = Account(name=f"{currency_code} Corner Shop", currency_code=currency_code, type=AccountType.MERCHANT, owner_id=owner_id)
+        escrow = Account(name=f"{currency_code} Escrow", currency_code=currency_code, type=AccountType.ESCROW, owner_id=owner_id)
         session.add_all([mint, treasury, alice, merchant, escrow])
         session.flush()
 
@@ -99,7 +100,7 @@ def seed_public_demo_data(session: Session) -> None:
     if has_seed_data:
         return
 
-    seed_demo_data(session)
+    seed_demo_data(session, owner_id=UUID(int=0))
 
     alice = session.execute(select(Account).where(Account.name == "INR Alice Wallet")).scalar_one()
 

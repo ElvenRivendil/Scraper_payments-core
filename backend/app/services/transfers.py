@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from uuid import UUID
 
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select
@@ -39,9 +40,13 @@ class TransferConflictError(Exception):
         self.required = required
 
 
-def create_transfer(session: Session, *, idempotency_key: str, transfer: TransferCreate) -> TransferResult:
+def create_transfer(session: Session, *, idempotency_key: str, transfer: TransferCreate, owner_id: UUID) -> TransferResult:
     scope = "transfers.create"
     payload_hash = request_hash(scope, transfer.model_dump(mode="json"))
+
+    source = session.get(Account, transfer.from_account_id)
+    if source is None or source.owner_id != owner_id:
+        raise TransferValidationError("Source account not found", code="ACCOUNT_NOT_FOUND")
 
     existing = session.get(IdempotencyKey, idempotency_key)
     if existing is not None:
@@ -52,11 +57,9 @@ def create_transfer(session: Session, *, idempotency_key: str, transfer: Transfe
         mark_idempotency_replay()
         return TransferResult(payload=existing.response_json, created=False)
 
-    source = session.get(Account, transfer.from_account_id)
     destination = session.get(Account, transfer.to_account_id)
-
-    if source is None or destination is None:
-        raise TransferValidationError("Source or destination account not found", code="ACCOUNT_NOT_FOUND")
+    if destination is None:
+        raise TransferValidationError("Destination account not found", code="ACCOUNT_NOT_FOUND")
     if transfer.currency_code is None:
         if source.currency_code != destination.currency_code:
             raise TransferValidationError(

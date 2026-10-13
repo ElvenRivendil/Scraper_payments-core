@@ -5,11 +5,18 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import LedgerEntry, LedgerEntryDirection, Transaction
+from app.models import Account, LedgerEntry, LedgerEntryDirection, Transaction
 
 
-def list_transactions(session: Session) -> list[dict]:
-    rows = session.execute(select(Transaction).order_by(Transaction.created_at.desc(), Transaction.id.desc())).scalars().all()
+def list_transactions(session: Session, owner_id: UUID) -> list[dict]:
+    owned_transaction_ids = select(LedgerEntry.tx_id).join(
+        Account, LedgerEntry.account_id == Account.id
+    ).where(Account.owner_id == owner_id)
+    rows = session.execute(
+        select(Transaction)
+        .where(Transaction.id.in_(owned_transaction_ids))
+        .order_by(Transaction.created_at.desc(), Transaction.id.desc())
+    ).scalars().all()
     payload: list[dict] = []
 
     for transaction in rows:
@@ -35,8 +42,16 @@ def list_transactions(session: Session) -> list[dict]:
     return payload
 
 
-def get_transaction_detail(session: Session, transaction_id: UUID) -> dict | None:
-    transaction = session.get(Transaction, transaction_id)
+def get_transaction_detail(session: Session, transaction_id: UUID, owner_id: UUID) -> dict | None:
+    owned_transaction_ids = select(LedgerEntry.tx_id).join(
+        Account, LedgerEntry.account_id == Account.id
+    ).where(Account.owner_id == owner_id)
+    transaction = session.execute(
+        select(Transaction).where(
+            Transaction.id == transaction_id,
+            Transaction.id.in_(owned_transaction_ids),
+        )
+    ).scalar_one_or_none()
     if transaction is None:
         return None
 

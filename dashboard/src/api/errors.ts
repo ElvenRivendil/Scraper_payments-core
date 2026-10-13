@@ -43,6 +43,12 @@ export async function parseApiError(response: Response): Promise<ApiError> {
 
 export function toUserMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiError) {
+    if (error.status === 401) {
+      return "Authentication required or session expired. Connect through Helm and retry.";
+    }
+    if (error.status === 403) {
+      return "Access denied. Your account may not have permission for this operation.";
+    }
     return error.message;
   }
   if (error instanceof Error) {

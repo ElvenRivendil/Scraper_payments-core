@@ -157,6 +157,22 @@ a:hover { color: var(--accent); }
 .ui-button--danger { background: rgba(216, 194, 139, 0.12); color: #ead9a8; border-color: rgba(216, 194, 139, 0.2); }
 .ui-button--ghost { background: rgba(255, 255, 255, 0.035); border-color: var(--panel-border); color: var(--muted); }
 .ui-button--ghost:hover:not(:disabled) { color: var(--text); }
+.ui-live-indicator {
+  width: 104px;
+  min-width: 104px;
+  flex-shrink: 0;
+  justify-content: center;
+}
+.ui-live-indicator.is-syncing {
+  animation: liveSyncPulse 1s ease-in-out infinite alternate;
+}
+@keyframes liveSyncPulse {
+  from { color: var(--muted); background-color: rgba(255, 255, 255, 0.035); }
+  to { color: var(--accent); background-color: rgba(122, 162, 247, 0.16); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-live-indicator.is-syncing { animation: none; color: var(--accent); }
+}
 
 .ui-field { display: grid; gap: 7px; min-width: 0; }
 .ui-field__label { color: rgba(255, 255, 255, 0.78); font-size: 12px; font-weight: 650; }
