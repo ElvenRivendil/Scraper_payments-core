@@ -99,3 +99,21 @@ def test_public_demo_blocks_mutating_control_plane_endpoints():
     for response in responses:
         assert response.status_code == 403
         assert response.json()["detail"]["code"] == "PUBLIC_DEMO_READ_ONLY"
+
+
+def test_authenticated_user_cannot_create_accounts(client):
+    accounts_before = client.get("/accounts")
+    assert accounts_before.status_code == 200
+
+    response = client.post(
+        "/accounts",
+        json={"name": "Blocked", "currency_code": "INR", "type": "USER"},
+    )
+
+    accounts_after = client.get("/accounts")
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "ACCOUNT_CREATION_DISABLED"
+    assert accounts_after.status_code == 200
+    assert [account["id"] for account in accounts_after.json()] == [
+        account["id"] for account in accounts_before.json()
+    ]

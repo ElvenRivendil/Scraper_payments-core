@@ -21,6 +21,8 @@ from app.core.db import create_engine_and_session
 from app.core.logging import configure_logging
 from app.core.metrics import HTTP_REQUESTS, refresh_runtime_gauges
 from app.seed import seed_demo_data, seed_public_demo_data
+from app.scripe.application.services.ScripeCurrencyRegistrationService import ScripeCurrencyRegistrationService
+from app.scripe.api.ScripeWalletProvisioningRoutes import ScripeWalletProvisioningRoutes
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -58,6 +60,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 seed_public_demo_data(session)
             elif settings.auto_seed:
                 seed_demo_data(session)
+            ScripeCurrencyRegistrationService.register(session)
             refresh_runtime_gauges(session)
 
     @app.get("/", tags=["health"])
@@ -71,6 +74,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "metrics": "/metrics",
         }
 
+    app.include_router(ScripeWalletProvisioningRoutes().router)
     app.include_router(health_router)
     app.include_router(capabilities_router)
     app.include_router(accounts_router, dependencies=[Depends(require_current_user)])
@@ -81,7 +85,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(webhooks_router, dependencies=[Depends(require_current_user)])
     app.include_router(dlq_router, dependencies=[Depends(require_current_user)])
     app.include_router(reconcile_router, dependencies=[Depends(require_current_user)])
-    app.include_router(demo_router)
+    app.include_router(demo_router, dependencies=[Depends(require_current_user)])
     app.include_router(metrics_router, dependencies=[Depends(require_current_user)])
 
     return app

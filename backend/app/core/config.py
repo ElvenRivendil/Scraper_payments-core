@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     database_url: str = Field(default="postgresql+psycopg://payments:payments@localhost:5432/payments")
     redis_url: str = Field(default="redis://localhost:6379/0")
     demo_secret: str = Field(default="change-me")
+    scripe_provisioning_secret: str = ""
     demo_endpoints_enabled: bool = False
     public_demo: bool = False
     auto_seed: bool = True

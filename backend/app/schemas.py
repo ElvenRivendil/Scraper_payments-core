@@ -61,6 +61,7 @@ class TransactionDetailOut(TransactionOut):
 class AccountOut(BaseModel):
     id: UUID
     name: str
+    wallet_code: str | None = None
     currency_code: str
     type: str
     created_at: datetime | None = None

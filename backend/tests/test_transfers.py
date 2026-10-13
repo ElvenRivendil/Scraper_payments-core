@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from app.core.auth import AuthenticatedUser, require_current_user
+from app.core.auth import require_current_user
+from backend.tests.support.AuthenticatedTestUserDependency import AuthenticatedTestUserDependency
 from sqlalchemy import func, select
 
 from app.models import EscrowAccount, LedgerEntry
@@ -11,7 +12,7 @@ from backend.tests.helpers import assert_tx_balanced
 
 def test_account_creation_and_currency_listing(client):
     currencies = client.get("/currencies").json()
-    assert {currency["code"] for currency in currencies} == {"INR", "USD", "EUR"}
+    assert {currency["code"] for currency in currencies} == {"INR", "USD", "EUR", "SCR"}
 
     account_response = client.post(
         "/accounts",
@@ -83,7 +84,7 @@ def test_transfer_rejects_source_owned_by_another_user(client):
 
     original_override = client.app.dependency_overrides[require_current_user]
     client.app.dependency_overrides[require_current_user] = (
-        lambda: AuthenticatedUser(id=UUID(int=2))
+        AuthenticatedTestUserDependency(user_id=UUID(int=2))
     )
     try:
         response = client.post(

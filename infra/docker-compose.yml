@@ -38,6 +38,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       HELM_AUTH_BASE_URL: http://host.docker.internal:8001
       DEMO_SECRET: ${PAYMENTS_DEMO_SECRET:-change-me}
+      SCRIPE_PROVISIONING_SECRET: ${SCRIPE_PROVISIONING_SECRET:?SCRIPE_PROVISIONING_SECRET must be set}
       AUTO_SEED: "true"
     depends_on:
       postgres:

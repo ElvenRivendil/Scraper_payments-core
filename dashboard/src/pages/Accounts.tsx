@@ -141,7 +141,10 @@ export function AccountsPage({ accounts, refresh, onOpenAccount, readOnly = fals
         eyebrow="accounts"
         title="Accounts"
         description="Search balances, filter by currency, and open account detail routes."
-        actions={!readOnly ? <Button variant="primary" onClick={() => setCreateOpen(true)}>Create account</Button> : null}
+        actions={!readOnly ? <Button variant="primary" onClick={() => {
+          setError("Wallet creation is restricted by system requirements. Wallets are managed by the system. Please contact the administrator if you need assistance.");
+          setMessage(null);
+        }}>Create account</Button> : null}
       />
 
       {error ? <Notice variant="error">{error}</Notice> : null}

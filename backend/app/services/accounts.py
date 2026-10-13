@@ -21,6 +21,7 @@ def account_payload(account: Account, posted_balance_minor: int, held_balance_mi
     return {
         "id": account.id,
         "name": account.name,
+        "wallet_code": account.wallet_code,
         "currency_code": account.currency_code,
         "type": account.type.value,
         "created_at": account.created_at,

@@ -12,6 +12,7 @@ from app.core.config import Settings
 from app.core.db import Base, create_engine_and_session
 from app.main import create_app
 from app.seed import seed_demo_data
+from backend.tests.support.AuthenticatedTestUserDependency import AuthenticatedTestUserDependency
 
 
 @pytest.fixture()
@@ -26,11 +27,12 @@ def app(temp_database_url: str):
     settings = Settings(
         database_url=temp_database_url,
         auto_seed=False,
+        public_demo=False,
         enqueue_webhooks=False,
         cors_origins=["http://testserver"],
     )
     application = create_app(settings)
-    application.dependency_overrides[require_current_user] = lambda: AuthenticatedUser(id=UUID(int=1))
+    application.dependency_overrides[require_current_user] = AuthenticatedTestUserDependency()
     engine = application.state.engine
     Base.metadata.create_all(engine)
     with application.state.session_factory() as session:
