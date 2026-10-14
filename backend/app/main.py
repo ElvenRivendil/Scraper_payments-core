@@ -23,6 +23,7 @@ from app.core.metrics import HTTP_REQUESTS, refresh_runtime_gauges
 from app.seed import seed_demo_data, seed_public_demo_data
 from app.scripe.application.services.ScripeCurrencyRegistrationService import ScripeCurrencyRegistrationService
 from app.scripe.api.ScripeWalletProvisioningRoutes import ScripeWalletProvisioningRoutes
+from app.scripe.api.ScripeWalletOperationsRoutes import ScripeWalletOperationsRoutes
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -75,6 +76,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         }
 
     app.include_router(ScripeWalletProvisioningRoutes().router)
+    app.include_router(ScripeWalletOperationsRoutes().router)
     app.include_router(health_router)
     app.include_router(capabilities_router)
     app.include_router(accounts_router, dependencies=[Depends(require_current_user)])

@@ -24,6 +24,11 @@ from app.models import (
 from app.services.balances import account_balances_minor
 
 PROCESSING_STALE_THRESHOLD = timedelta(minutes=5)
+SCRIPE_ADJUSTMENT_DIRECTIONS = {
+    "Scripe deposit": LedgerEntryDirection.CREDIT,
+    "Test deposit": LedgerEntryDirection.CREDIT,
+    "Test reset": LedgerEntryDirection.DEBIT,
+}
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -39,10 +44,28 @@ def _ledger_checks(session: Session) -> tuple[list[dict], list[dict]]:
     transactions = session.execute(select(Transaction)).scalars().all()
     for tx in transactions:
         entries = session.execute(select(LedgerEntry).where(LedgerEntry.tx_id == tx.id)).scalars().all()
+        is_scripe_adjustment = False
+        if (
+            tx.type == TransactionType.DEPOSIT
+            and tx.currency_code == "SCR"
+            and tx.description in SCRIPE_ADJUSTMENT_DIRECTIONS
+            and len(entries) == 1
+        ):
+            entry = entries[0]
+            account = session.get(Account, entry.account_id)
+            is_scripe_adjustment = (
+                entry.direction == SCRIPE_ADJUSTMENT_DIRECTIONS[tx.description]
+                and entry.currency_code == "SCR"
+                and account is not None
+                and account.owner_id is not None
+                and account.wallet_code == "PM"
+                and account.currency_code == "SCR"
+                and account.type == AccountType.USER
+            )
         debit_total = sum(entry.amount for entry in entries if entry.direction == LedgerEntryDirection.DEBIT)
         credit_total = sum(entry.amount for entry in entries if entry.direction == LedgerEntryDirection.CREDIT)
 
-        if debit_total != credit_total:
+        if debit_total != credit_total and not is_scripe_adjustment:
             unbalanced.append(
                 {
                     "tx_id": str(tx.id),
