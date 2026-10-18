@@ -16,7 +16,11 @@ router = APIRouter(prefix="/accounts", tags=["accounts"])
 
 @router.get("", response_model=list[AccountOut])
 def read_accounts(session: Session = Depends(get_db), current_user: AuthenticatedUser = Depends(require_current_user)):
-    return list_accounts(session, current_user.id)
+    return list_accounts(
+        session,
+        current_user.id,
+        effective_role=current_user.effective_role,
+    )
 
 
 @router.post("", status_code=403)
@@ -33,7 +37,12 @@ def post_account(request: Request):
 
 @router.get("/{account_id}", response_model=AccountDetailOut)
 def read_account(account_id: UUID, session: Session = Depends(get_db), current_user: AuthenticatedUser = Depends(require_current_user)):
-    account = get_account(session, account_id, current_user.id)
+    account = get_account(
+        session,
+        account_id,
+        current_user.id,
+        effective_role=current_user.effective_role,
+    )
     if account is None:
         raise HTTPException(status_code=404, detail="Account not found")
     return account
@@ -41,7 +50,13 @@ def read_account(account_id: UUID, session: Session = Depends(get_db), current_u
 
 @router.get("/{account_id}/statement", response_model=AccountStatementOut)
 def read_account_statement(account_id: UUID, limit: int = 50, session: Session = Depends(get_db), current_user: AuthenticatedUser = Depends(require_current_user)):
-    statement = get_account_statement(session, account_id, owner_id=current_user.id, limit=limit)
+    statement = get_account_statement(
+        session,
+        account_id,
+        owner_id=current_user.id,
+        limit=limit,
+        effective_role=current_user.effective_role,
+    )
     if statement is None:
         raise HTTPException(status_code=404, detail="Account not found")
     return statement

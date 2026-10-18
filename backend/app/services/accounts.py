@@ -10,6 +10,19 @@ from app.schemas import AccountCreate
 from app.services.balances import account_balances_minor
 
 
+HIDDEN_WALLET_CODES = frozenset({
+    "SYA", "ITF", "EWF", "OCF", "PCF", "PTC", "DPA", "ILA", "RVA",
+})
+PRIVILEGED_WALLET_ROLES = frozenset({"ADMINISTRATOR", "SUPER_ADMIN"})
+
+
+def _is_hidden_account(account: Account, effective_role: str) -> bool:
+    return (
+        account.wallet_code in HIDDEN_WALLET_CODES
+        and effective_role not in PRIVILEGED_WALLET_ROLES
+    )
+
+
 def list_currencies(session: Session) -> list[dict]:
     currencies = session.execute(select(Currency).order_by(Currency.code)).scalars().all()
     return [{"code": currency.code, "minor_unit": currency.minor_unit} for currency in currencies]
@@ -31,18 +44,38 @@ def account_payload(account: Account, posted_balance_minor: int, held_balance_mi
     }
 
 
-def list_accounts(session: Session, owner_id: UUID) -> list[dict]:
-    accounts = session.execute(select(Account).where(Account.owner_id == owner_id).order_by(Account.created_at, Account.name)).scalars().all()
+def list_accounts(
+    session: Session,
+    owner_id: UUID,
+    effective_role: str = "USER",
+) -> list[dict]:
+    accounts = session.execute(
+        select(Account)
+        .where(Account.owner_id == owner_id)
+        .order_by(Account.created_at, Account.name)
+    ).scalars().all()
     payload: list[dict] = []
     for account in accounts:
+        if _is_hidden_account(account, effective_role):
+            continue
         posted, held, _available = account_balances_minor(session, account.id)
         payload.append(account_payload(account, posted, held))
     return payload
 
 
-def get_account(session: Session, account_id: UUID, owner_id: UUID) -> dict | None:
-    account = session.execute(select(Account).where(Account.id == account_id, Account.owner_id == owner_id)).scalar_one_or_none()
-    if account is None:
+def get_account(
+    session: Session,
+    account_id: UUID,
+    owner_id: UUID,
+    effective_role: str = "USER",
+) -> dict | None:
+    account = session.execute(
+        select(Account).where(
+            Account.id == account_id,
+            Account.owner_id == owner_id,
+        )
+    ).scalar_one_or_none()
+    if account is None or _is_hidden_account(account, effective_role):
         return None
 
     posted, held, _available = account_balances_minor(session, account.id)
@@ -65,9 +98,21 @@ def create_account(session: Session, payload: AccountCreate, owner_id: UUID) -> 
     return account_payload(account, 0, 0)
 
 
-def get_account_statement(session: Session, account_id: UUID, *, owner_id: UUID, limit: int = 50) -> dict | None:
-    account = session.execute(select(Account).where(Account.id == account_id, Account.owner_id == owner_id)).scalar_one_or_none()
-    if account is None:
+def get_account_statement(
+    session: Session,
+    account_id: UUID,
+    *,
+    owner_id: UUID,
+    limit: int = 50,
+    effective_role: str = "USER",
+) -> dict | None:
+    account = session.execute(
+        select(Account).where(
+            Account.id == account_id,
+            Account.owner_id == owner_id,
+        )
+    ).scalar_one_or_none()
+    if account is None or _is_hidden_account(account, effective_role):
         return None
 
     posted, held, _available = account_balances_minor(session, account_id)
