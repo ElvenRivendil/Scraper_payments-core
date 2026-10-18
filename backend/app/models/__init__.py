@@ -9,3 +9,4 @@ from app.models.ledger_entry import LedgerEntry
 from app.models.reconcile_run import ReconcileRun
 from app.models.transaction import Transaction
 from app.models.webhook_event import WebhookEvent
+from app.models.ScripeSyaWithdrawalWindow import ScripeSyaWithdrawalWindow

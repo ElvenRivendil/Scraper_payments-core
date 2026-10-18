@@ -40,9 +40,20 @@ class TransferConflictError(Exception):
         self.required = required
 
 
-def create_transfer(session: Session, *, idempotency_key: str, transfer: TransferCreate, owner_id: UUID) -> TransferResult:
-    scope = "transfers.create"
-    payload_hash = request_hash(scope, transfer.model_dump(mode="json"))
+def create_transfer(
+    session: Session,
+    *,
+    idempotency_key: str,
+    transfer: TransferCreate,
+    owner_id: UUID,
+    scope: str = "transfers.create",
+    request_payload: dict | None = None,
+    commit: bool = True,
+) -> TransferResult:
+    payload_hash = request_hash(
+        scope,
+        transfer.model_dump(mode="json") if request_payload is None else request_payload,
+    )
 
     source = session.get(Account, transfer.from_account_id)
     if source is None or source.owner_id != owner_id:
@@ -74,8 +85,15 @@ def create_transfer(session: Session, *, idempotency_key: str, transfer: Transfe
     if source.id == destination.id:
         raise TransferValidationError("Source and destination must be different", code="INVALID_TRANSFER")
 
-    locked_source = session.execute(select(Account).where(Account.id == source.id).with_for_update()).scalar_one()
-    locked_destination = session.execute(select(Account).where(Account.id == destination.id).with_for_update()).scalar_one()
+    locked_accounts = session.execute(
+        select(Account)
+        .where(Account.id.in_((source.id, destination.id)))
+        .order_by(Account.wallet_code, Account.id)
+        .with_for_update()
+    ).scalars().all()
+    locked_accounts_by_id = {account.id: account for account in locked_accounts}
+    locked_source = locked_accounts_by_id[source.id]
+    locked_destination = locked_accounts_by_id[destination.id]
 
     _posted_balance, _held_balance, available_balance = account_balances_minor(session, locked_source.id)
     if available_balance < transfer.amount_minor:
@@ -166,6 +184,9 @@ def create_transfer(session: Session, *, idempotency_key: str, transfer: Transfe
             status_code=201,
         )
     )
+
+    if not commit:
+        return TransferResult(payload=payload, created=True)
 
     try:
         session.commit()

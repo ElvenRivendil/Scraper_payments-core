@@ -11,7 +11,7 @@ from app.services.balances import account_balances_minor
 
 
 HIDDEN_WALLET_CODES = frozenset({
-    "SYA", "ITF", "EWF", "OCF", "PCF", "PTC", "DPA", "ILA", "RVA",
+    "ITF", "EWF", "OCF", "PCF", "PTC", "DPA", "ILA", "RVA",
 })
 PRIVILEGED_WALLET_ROLES = frozenset({"ADMINISTRATOR", "SUPER_ADMIN"})
 
