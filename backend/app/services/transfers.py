@@ -49,6 +49,7 @@ def create_transfer(
     scope: str = "transfers.create",
     request_payload: dict | None = None,
     commit: bool = True,
+    prelocked_accounts: dict[UUID, Account] | None = None,
 ) -> TransferResult:
     payload_hash = request_hash(
         scope,
@@ -85,13 +86,23 @@ def create_transfer(
     if source.id == destination.id:
         raise TransferValidationError("Source and destination must be different", code="INVALID_TRANSFER")
 
-    locked_accounts = session.execute(
-        select(Account)
-        .where(Account.id.in_((source.id, destination.id)))
-        .order_by(Account.wallet_code, Account.id)
-        .with_for_update()
-    ).scalars().all()
-    locked_accounts_by_id = {account.id: account for account in locked_accounts}
+    if prelocked_accounts is None:
+        locked_accounts = session.execute(
+            select(Account)
+            .where(Account.id.in_((source.id, destination.id)))
+            .order_by(Account.wallet_code, Account.id)
+            .with_for_update()
+        ).scalars().all()
+        locked_accounts_by_id = {
+            account.id: account for account in locked_accounts
+        }
+    else:
+        locked_accounts_by_id = prelocked_accounts
+        if source.id not in locked_accounts_by_id or destination.id not in locked_accounts_by_id:
+            raise TransferValidationError(
+                "Prelocked accounts do not contain both transfer accounts",
+                code="PRELOCKED_ACCOUNT_MISSING",
+            )
     locked_source = locked_accounts_by_id[source.id]
     locked_destination = locked_accounts_by_id[destination.id]
 
