@@ -1,6 +1,8 @@
+# /* ../NauTrader_Helm/payments-core/backend/app/workers/celery_app.py */
 from __future__ import annotations
 
 from celery import Celery
+from celery.schedules import crontab
 
 from app.core.config import get_settings
 
@@ -12,4 +14,16 @@ celery_app = Celery(
     backend=settings.redis_url,
     include=["app.workers.tasks"],
 )
-celery_app.conf.update(task_track_started=True, worker_prefetch_multiplier=1)
+
+celery_app.conf.update(
+    task_track_started=True,
+    worker_prefetch_multiplier=1,
+    enable_utc=True,
+    timezone="UTC",
+    beat_schedule={
+        "user-funds-collection-hourly-probe": {
+            "task": "payments_core.user_funds_collection_schedule_probe",
+            "schedule": crontab(minute=5),
+        },
+    },
+)
