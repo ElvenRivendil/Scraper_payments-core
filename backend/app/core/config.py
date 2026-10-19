@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     helm_auth_base_url: str = "http://host.docker.internal:8001"
     helm_internal_api_secret: str = ""
     app_env: str = "development"
-    database_url: str = Field(default="postgresql+psycopg://payments:payments@localhost:5432/payments")
+    database_url: str = Field(default="")
     redis_url: str = Field(default="redis://localhost:6379/0")
     demo_secret: str = Field(default="change-me")
     scripe_provisioning_secret: str = ""
