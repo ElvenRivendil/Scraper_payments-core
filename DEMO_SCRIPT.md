@@ -2,7 +2,7 @@
 
 ## Start
 
-1. Run `docker compose -f infra/docker-compose.yml up --build`.
+1. Run `docker compose --env-file ../.env -f infra/docker-compose.yml up --build`.
 2. Wait for the backend and dashboard to become ready.
 3. Open `http://localhost:5174`.
 

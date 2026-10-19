@@ -1,5 +1,5 @@
 COMPOSE_FILE := infra/docker-compose.yml
-COMPOSE := docker compose -f $(COMPOSE_FILE)
+COMPOSE := docker compose --env-file ../.env -f $(COMPOSE_FILE)
 API_BASE ?= http://localhost:18000
 DEMO_SECRET ?= change-me
 PYTEST := $(if $(wildcard .venv/bin/pytest),.venv/bin/pytest,pytest)

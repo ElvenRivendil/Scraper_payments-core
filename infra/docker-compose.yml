@@ -37,6 +37,7 @@ services:
       DATABASE_URL: postgresql+psycopg://payments:payments@postgres:5432/payments
       REDIS_URL: redis://redis:6379/0
       HELM_AUTH_BASE_URL: http://host.docker.internal:8001
+      HELM_INTERNAL_API_SECRET: ${HELM_AUTH_HELM_INTERNAL_API_SECRET:?HELM_AUTH_HELM_INTERNAL_API_SECRET must be set}
       DEMO_SECRET: ${PAYMENTS_DEMO_SECRET:-change-me}
       SCRIPE_PROVISIONING_SECRET: ${SCRIPE_PROVISIONING_SECRET:?SCRIPE_PROVISIONING_SECRET must be set}
       AUTO_SEED: "true"
