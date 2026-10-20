@@ -1,0 +1,155 @@
+# /* ../NauTrader_Helm/payments-core/backend/app/services/demo_reset.py */
+from __future__ import annotations
+
+from sqlalchemy import delete, select
+from sqlalchemy.orm import Session
+
+from app.models import (
+    Account,
+    Currency,
+    Hold,
+    LedgerEntry,
+    LedgerEntryDirection,
+    Transaction,
+    TransactionStatus,
+    TransactionType,
+)
+
+
+class DemoResetUnsafeError(RuntimeError):
+    """Raised when demo data cannot be isolated safely."""
+
+
+def reset_demo_data_safely(session: Session) -> None:
+    currency_codes = ("INR", "USD", "EUR")
+    expected_names = {
+        f"{code} {suffix}"
+        for code in currency_codes
+        for suffix in (
+            "Mint Source",
+            "Treasury",
+            "Alice Wallet",
+            "Corner Shop",
+            "Escrow",
+        )
+    }
+
+    try:
+        currencies = set(
+            session.execute(
+                select(Currency.code).where(Currency.code.in_(currency_codes))
+            ).scalars()
+        )
+        if currencies != set(currency_codes):
+            raise DemoResetUnsafeError(
+                "Required demo currencies are missing; no data was changed."
+            )
+
+        accounts = list(
+            session.execute(
+                select(Account).where(
+                    Account.name.in_(expected_names),
+                    Account.is_demo.is_(True),
+                    Account.is_system.is_(False),
+                )
+            ).scalars()
+        )
+        accounts_by_name = {account.name: account for account in accounts}
+        if len(accounts) != len(expected_names) or set(accounts_by_name) != expected_names:
+            raise DemoResetUnsafeError(
+                "The expected isolated demo accounts were not found; no data was changed."
+            )
+
+        demo_account_ids = {account.id for account in accounts}
+        entries = list(
+            session.execute(
+                select(LedgerEntry).where(
+                    LedgerEntry.account_id.in_(demo_account_ids)
+                )
+            ).scalars()
+        )
+        transaction_ids = {entry.tx_id for entry in entries}
+
+        seed_keys = [f"seed:{code}:opening" for code in currency_codes]
+        transaction_ids.update(
+            session.execute(
+                select(Transaction.id).where(
+                    Transaction.idempotency_key.in_(seed_keys)
+                )
+            ).scalars()
+        )
+
+        if transaction_ids:
+            linked_entries = list(
+                session.execute(
+                    select(LedgerEntry).where(
+                        LedgerEntry.tx_id.in_(transaction_ids)
+                    )
+                ).scalars()
+            )
+            if any(entry.account_id not in demo_account_ids for entry in linked_entries):
+                raise DemoResetUnsafeError(
+                    "A demo transaction references a non-demo account; no data was changed."
+                )
+
+            external_holds = list(
+                session.execute(
+                    select(Hold).where(
+                        Hold.captured_tx_id.in_(transaction_ids),
+                        Hold.account_id.not_in(demo_account_ids),
+                    )
+                ).scalars()
+            )
+            if external_holds:
+                raise DemoResetUnsafeError(
+                    "A demo transaction is referenced by a non-demo hold; no data was changed."
+                )
+
+        session.execute(
+            delete(Hold).where(Hold.account_id.in_(demo_account_ids))
+        )
+        if transaction_ids:
+            session.execute(
+                delete(LedgerEntry).where(
+                    LedgerEntry.tx_id.in_(transaction_ids)
+                )
+            )
+            session.execute(
+                delete(Transaction).where(Transaction.id.in_(transaction_ids))
+            )
+
+        for code in currency_codes:
+            mint = accounts_by_name[f"{code} Mint Source"]
+            alice = accounts_by_name[f"{code} Alice Wallet"]
+            transaction = Transaction(
+                type=TransactionType.DEPOSIT,
+                status=TransactionStatus.POSTED,
+                currency_code=code,
+                idempotency_key=f"seed:{code}:opening",
+                description=f"Opening balance for {code} demo accounts",
+            )
+            session.add(transaction)
+            session.flush()
+            session.add_all(
+                [
+                    LedgerEntry(
+                        tx_id=transaction.id,
+                        account_id=mint.id,
+                        currency_code=code,
+                        direction=LedgerEntryDirection.DEBIT,
+                        amount=500000,
+                    ),
+                    LedgerEntry(
+                        tx_id=transaction.id,
+                        account_id=alice.id,
+                        currency_code=code,
+                        direction=LedgerEntryDirection.CREDIT,
+                        amount=500000,
+                    ),
+                ]
+            )
+
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, Enum as SAEnum, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import Uuid
 
@@ -22,6 +22,7 @@ class Account(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     wallet_code: Mapped[str | None] = mapped_column(String(4), nullable=True)
     is_system: Mapped[bool] = mapped_column(default=False, nullable=False, server_default="false")
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
     currency_code: Mapped[str] = mapped_column(ForeignKey("currencies.code", ondelete="RESTRICT"), nullable=False, index=True)
     type: Mapped[AccountType] = mapped_column(SAEnum(AccountType, name="account_type"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

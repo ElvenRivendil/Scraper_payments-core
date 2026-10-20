@@ -25,6 +25,79 @@ class HelmApiClient:
     ) -> dict[str, Any]:
         return self._get(f"/api/user-tariffs/{entity_key}", authorization)
 
+    def get_active_user_ids(self, internal_secret: str) -> list[UUID]:
+        if not internal_secret:
+            raise RuntimeError("Helm internal API secret is not configured")
+
+        user_ids: list[UUID] = []
+        skip = 0
+        limit = 500
+        expected_count: int | None = None
+
+        while expected_count is None or skip < expected_count:
+            try:
+                response = httpx.get(
+                    f"{self.base_url}/api/internal/user-funds-collection/active-users",
+                    headers={"X-Helm-Internal-Secret": internal_secret},
+                    params={"skip": skip, "limit": limit},
+                    timeout=self.timeout,
+                )
+            except httpx.TimeoutException:
+                raise RuntimeError("Helm active-user request timed out") from None
+            except httpx.RequestError:
+                raise RuntimeError("Helm active-user service is unavailable") from None
+
+            if response.status_code != 200:
+                raise RuntimeError(
+                    f"Helm active-user request failed with HTTP {response.status_code}"
+                )
+
+            try:
+                payload = response.json()
+            except ValueError:
+                raise RuntimeError("Helm returned invalid JSON for active users") from None
+
+            if not isinstance(payload, dict):
+                raise RuntimeError("Helm returned an invalid active-user response")
+
+            data = payload.get("data")
+            count = payload.get("count")
+            if (
+                not isinstance(data, list)
+                or isinstance(count, bool)
+                or not isinstance(count, int)
+                or count < 0
+                or any(not isinstance(item, str) for item in data)
+            ):
+                raise RuntimeError("Helm returned an invalid active-user payload")
+
+            try:
+                page_ids = [UUID(item) for item in data]
+            except ValueError:
+                raise RuntimeError("Helm returned an invalid user UUID") from None
+
+            if expected_count is None:
+                expected_count = count
+            elif count != expected_count:
+                raise RuntimeError("Helm active-user count changed during pagination")
+
+            expected_page_size = min(limit, expected_count - skip)
+            if len(page_ids) != expected_page_size:
+                raise RuntimeError("Helm returned an incomplete or oversized active-user page")
+            if len(set(page_ids)) != len(page_ids):
+                raise RuntimeError("Helm returned duplicate user IDs within a page")
+
+            user_ids.extend(page_ids)
+            skip += len(page_ids)
+
+            if not page_ids and skip < expected_count:
+                raise RuntimeError("Helm returned an incomplete active-user page")
+
+        if len(user_ids) != expected_count or len(set(user_ids)) != len(user_ids):
+            raise RuntimeError("Helm returned an incomplete or duplicate active-user list")
+
+        return user_ids
+
     def _get(self, path: str, authorization: str) -> dict[str, Any]:
         try:
             response = httpx.get(

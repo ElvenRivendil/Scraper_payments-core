@@ -5,20 +5,18 @@ from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from uuid import UUID
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models import (
     Account,
     AccountType,
-    AuditEvent,
     Currency,
     DlqEvent,
     EscrowAccount,
     Hold,
     HoldStatus,
-    IdempotencyKey,
     LedgerEntry,
     LedgerEntryDirection,
     ReconcileRun,
@@ -47,11 +45,11 @@ def seed_demo_data(session: Session, *, owner_id: UUID | None = None) -> None:
     session.flush()
 
     for currency_code in ["INR", "USD", "EUR"]:
-        mint = Account(name=f"{currency_code} Mint Source", currency_code=currency_code, type=AccountType.MERCHANT, owner_id=owner_id)
-        treasury = Account(name=f"{currency_code} Treasury", currency_code=currency_code, type=AccountType.MERCHANT, owner_id=owner_id)
-        alice = Account(name=f"{currency_code} Alice Wallet", currency_code=currency_code, type=AccountType.USER, owner_id=owner_id)
-        merchant = Account(name=f"{currency_code} Corner Shop", currency_code=currency_code, type=AccountType.MERCHANT, owner_id=owner_id)
-        escrow = Account(name=f"{currency_code} Escrow", currency_code=currency_code, type=AccountType.ESCROW, owner_id=owner_id)
+        mint = Account(name=f"{currency_code} Mint Source", currency_code=currency_code, type=AccountType.MERCHANT, owner_id=owner_id, is_demo=True)
+        treasury = Account(name=f"{currency_code} Treasury", currency_code=currency_code, type=AccountType.MERCHANT, owner_id=owner_id, is_demo=True)
+        alice = Account(name=f"{currency_code} Alice Wallet", currency_code=currency_code, type=AccountType.USER, owner_id=owner_id, is_demo=True)
+        merchant = Account(name=f"{currency_code} Corner Shop", currency_code=currency_code, type=AccountType.MERCHANT, owner_id=owner_id, is_demo=True)
+        escrow = Account(name=f"{currency_code} Escrow", currency_code=currency_code, type=AccountType.ESCROW, owner_id=owner_id, is_demo=True)
         session.add_all([mint, treasury, alice, merchant, escrow])
         session.flush()
 
@@ -286,16 +284,6 @@ def seed_public_demo_data(session: Session) -> None:
 
 
 def reset_demo_data(session: Session) -> None:
-    # Ordered deletes keep this path portable across Postgres and SQLite.
-    session.execute(delete(AuditEvent))
-    session.execute(delete(DlqEvent))
-    session.execute(delete(WebhookEvent))
-    session.execute(delete(Hold))
-    session.execute(delete(LedgerEntry))
-    session.execute(delete(IdempotencyKey))
-    session.execute(delete(EscrowAccount))
-    session.execute(delete(Transaction))
-    session.execute(delete(Account))
-    session.execute(delete(Currency))
-    session.commit()
-    seed_demo_data(session)
+    from app.services.demo_reset import reset_demo_data_safely
+
+    reset_demo_data_safely(session)

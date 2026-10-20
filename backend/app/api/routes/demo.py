@@ -9,6 +9,7 @@ from app.core.guards import require_write_access
 from app.core.metrics import refresh_runtime_gauges
 from app.schemas import DashboardStatsOut, DemoFundCreate, DemoInjectFailureCreate
 from app.seed import reset_demo_data
+from app.services.demo_reset import DemoResetUnsafeError
 from app.services.demo import DemoFundingError, fund_account
 from app.services.reconciliation import dashboard_stats
 from app.services.webhooks import set_fail_once
@@ -27,10 +28,30 @@ def _require_demo_endpoints_enabled(request: Request) -> None:
 
 def _require_demo_secret(request: Request, demo_secret: str | None) -> None:
     _require_demo_endpoints_enabled(request)
-    require_write_access(request)
     settings = request.app.state.settings
     if not demo_secret or demo_secret != settings.demo_secret:
         raise HTTPException(status_code=401, detail={"code": "UNAUTHORIZED", "message": "Invalid demo secret"})
+
+
+def _require_demo_write_access(request: Request) -> None:
+    require_write_access(request)
+
+
+def _require_demo_reset_enabled(request: Request) -> None:
+    settings = request.app.state.settings
+    if (
+        settings.app_env.lower() == "production"
+        or not settings.demo_reset_enabled
+        or not settings.demo_reset_database_url
+        or settings.database_url != settings.demo_reset_database_url
+    ):
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "DEMO_RESET_DISABLED",
+                "message": "Demo reset is disabled for this database",
+            },
+        )
 
 
 @router.post("/fund")
@@ -41,6 +62,7 @@ def post_demo_fund(
     demo_secret: str | None = Header(default=None, alias="X-DEMO-SECRET"),
 ):
     _require_demo_secret(request, demo_secret)
+    _require_demo_write_access(request)
 
     try:
         return fund_account(session, account_id=payload.account_id, amount=payload.amount, currency=payload.currency)
@@ -55,6 +77,7 @@ def post_inject_failure(
     demo_secret: str | None = Header(default=None, alias="X-DEMO-SECRET"),
 ):
     _require_demo_secret(request, demo_secret)
+    _require_demo_write_access(request)
 
     set_fail_once(payload.event_id)
     return {
@@ -70,8 +93,17 @@ def post_demo_reset(
     demo_secret: str | None = Header(default=None, alias="X-DEMO-SECRET"),
 ):
     _require_demo_secret(request, demo_secret)
+    _require_demo_write_access(request)
+    _require_demo_reset_enabled(request)
 
-    reset_demo_data(session)
+    try:
+        reset_demo_data(session)
+    except DemoResetUnsafeError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "DEMO_RESET_UNSAFE", "message": str(error)},
+        ) from error
+
     refresh_runtime_gauges(session)
     return {"status": "ok", "message": "Demo data reset complete"}
 

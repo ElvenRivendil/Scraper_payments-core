@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     demo_secret: str = Field(default="change-me")
     scripe_provisioning_secret: str = ""
     demo_endpoints_enabled: bool = False
+    demo_reset_enabled: bool = False
+    demo_reset_database_url: str = ""
     public_demo: bool = False
     auto_seed: bool = True
     auto_seed_on_empty: bool = False
