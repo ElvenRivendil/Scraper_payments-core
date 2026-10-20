@@ -62,10 +62,30 @@ def _ledger_checks(session: Session) -> tuple[list[dict], list[dict]]:
                 and account.currency_code == "SCR"
                 and account.type == AccountType.USER
             )
+        is_virtual_consolidation = False
+        if tx.type == TransactionType.VIRTUAL_CONSOLIDATION and len(entries) == 1:
+            entry = entries[0]
+            account = session.get(Account, entry.account_id)
+            is_virtual_consolidation = (
+                tx.currency_code == "SCR"
+                and entry.direction in {
+                    LedgerEntryDirection.CREDIT,
+                    LedgerEntryDirection.DEBIT,
+                }
+                and entry.amount >= 0
+                and entry.currency_code == "SCR"
+                and account is not None
+                and account.owner_id == UUID("d5f4a08f-e37c-4b30-818c-65144a28ebf1")
+                and account.wallet_code == "SCAP"
+                and account.is_system
+                and account.currency_code == "SCR"
+                and account.type == AccountType.USER
+            )
+
         debit_total = sum(entry.amount for entry in entries if entry.direction == LedgerEntryDirection.DEBIT)
         credit_total = sum(entry.amount for entry in entries if entry.direction == LedgerEntryDirection.CREDIT)
 
-        if debit_total != credit_total and not is_scripe_adjustment:
+        if debit_total != credit_total and not is_scripe_adjustment and not is_virtual_consolidation:
             unbalanced.append(
                 {
                     "tx_id": str(tx.id),
@@ -82,6 +102,17 @@ def _ledger_checks(session: Session) -> tuple[list[dict], list[dict]]:
                     "tx_id": str(tx.id),
                     "transaction_currency": tx.currency_code,
                     "entry_currencies": entry_currencies,
+                }
+            )
+
+        if tx.type == TransactionType.VIRTUAL_CONSOLIDATION and not is_virtual_consolidation:
+            unbalanced.append(
+                {
+                    "tx_id": str(tx.id),
+                    "debit_total": debit_total,
+                    "credit_total": credit_total,
+                    "entry_count": len(entries),
+                    "reason": "invalid_virtual_consolidation_entry",
                 }
             )
 

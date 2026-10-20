@@ -13,6 +13,7 @@ class TransactionType(str, enum.Enum):
     TRANSFER = "TRANSFER"
     DEPOSIT = "DEPOSIT"
     HOLD_CAPTURE = "HOLD_CAPTURE"
+    VIRTUAL_CONSOLIDATION = "VIRTUAL_CONSOLIDATION"
 
 
 class TransactionStatus(str, enum.Enum):

@@ -20,10 +20,15 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,
     enable_utc=True,
     timezone="UTC",
+    beat_scheduler="app.workers.SystemWalletsManagementScheduler",
     beat_schedule={
         "user-funds-collection-hourly-probe": {
             "task": "payments_core.user_funds_collection_schedule_probe",
             "schedule": crontab(minute=5),
+        },
+        "system-funds-consolidation-hourly": {
+            "task": "payments_core.system_funds_consolidation_hourly",
+            "schedule": crontab(minute=15),
         },
     },
 )
