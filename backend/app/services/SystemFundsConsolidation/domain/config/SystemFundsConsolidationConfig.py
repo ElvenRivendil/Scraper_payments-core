@@ -19,6 +19,8 @@ class SystemFundsConsolidationConfig:
     IDEMPOTENCY_PREFIX = "sfc"
     DESCRIPTION_PREFIX = "Hourly system funds consolidation"
     SCHEDULE_MINUTE = 15
+    LOG_DIRECTORY = "logs"
+    LOG_FILENAME = "system_funds_consolidation.log"
 
     @classmethod
     def validate(cls) -> None:

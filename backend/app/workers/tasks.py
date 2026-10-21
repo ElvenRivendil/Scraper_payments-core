@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from datetime import UTC, datetime
 
 from app.api.helm.infrastructure.clients.HelmApiClient import HelmApiClient
 from app.core.config import get_settings
 from app.core.db import create_engine_and_session
 from app.core.execution_logging.ServiceExecutionLogger import ServiceExecutionLogger
+from app.services.UserFundsCollection.domain.config.UserFundsCollectionConfig import UserFundsCollectionConfig
+from app.services.SystemFundsConsolidation.domain.config.SystemFundsConsolidationConfig import SystemFundsConsolidationConfig
 from app.services.UserFundsCollection.application.services.UserFundsCollectionService import (
     UserFundsCollectionService,
 )
@@ -47,7 +50,7 @@ def process_webhook(event_id: str) -> dict:
 def user_funds_collection_schedule_probe() -> dict[str, int | str]:
     execution = ServiceExecutionLogger(
         service_name="user_funds_collection",
-        log_file="logs/user_funds_collection.log",
+        log_file=Path(UserFundsCollectionConfig.LOG_DIRECTORY) / UserFundsCollectionConfig.LOG_FILENAME,
         console_logger=logger,
     )
     with execution:
@@ -132,7 +135,7 @@ def user_funds_collection_schedule_probe() -> dict[str, int | str]:
 def system_funds_consolidation_hourly() -> dict[str, int | str]:
     execution = ServiceExecutionLogger(
         service_name="system_funds_consolidation",
-        log_file="logs/system_funds_consolidation.log",
+        log_file=Path(SystemFundsConsolidationConfig.LOG_DIRECTORY) / SystemFundsConsolidationConfig.LOG_FILENAME,
         console_logger=logger,
     )
     with execution:

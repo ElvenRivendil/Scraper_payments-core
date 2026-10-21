@@ -18,6 +18,9 @@ class UserFundsCollectionConfig:
     def get_wallet_pairs(cls) -> tuple[tuple[str, str], ...]:
         return cls.WALLET_PAIRS
 
+    LOG_DIRECTORY = "logs"
+    LOG_FILENAME = "user_funds_collection.log"
+
     @classmethod
     def validate(cls) -> None:
         if not cls.CURRENCY_CODE:

@@ -1,5 +1,5 @@
 # /* ../NauTrader_Helm/payments-core/backend/app/api/system_wallets_management/api/SystemWalletsManagementRoutes.py */
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.api.system_wallets_management.application.services.SystemWalletsManagementConfigService import (
     SystemWalletsManagementConfigService,
@@ -19,7 +19,11 @@ from app.api.system_wallets_management.domain.models.SystemWalletsManagementTask
 from app.api.system_wallets_management.domain.models.SystemWalletsManagementTaskStateResponse import (
     SystemWalletsManagementTaskStateResponse,
 )
+from pathlib import Path
+
 from app.core.auth import AuthenticatedUser, require_current_user
+from app.services.UserFundsCollection.domain.config.UserFundsCollectionConfig import UserFundsCollectionConfig
+from app.services.SystemFundsConsolidation.domain.config.SystemFundsConsolidationConfig import SystemFundsConsolidationConfig
 from app.core.authorization.SystemWalletAccessPolicy import SystemWalletAccessPolicy
 
 
@@ -45,6 +49,16 @@ class SystemWalletsManagementRoutes:
             response_model=SystemWalletsManagementTaskActionResponse,
         )
         self.router.add_api_route(
+            "/tasks/{task_id}/logs",
+            self.get_task_log,
+            methods=["GET"],
+        )
+        self.router.add_api_route(
+            "/tasks/{task_id}/logs",
+            self.clear_task_log,
+            methods=["DELETE"],
+        )
+        self.router.add_api_route(
             "/tasks/{task_id}/run",
             self.run_task,
             methods=["POST"],
@@ -56,6 +70,77 @@ class SystemWalletsManagementRoutes:
             methods=["GET"],
             response_model=SystemWalletsManagementConfigResponse,
         )
+
+    def get_task_log(
+        self,
+        task_id: str,
+        request: Request,
+        limit_bytes: int = Query(default=12000, ge=1, le=50000),
+        current_user: AuthenticatedUser = Depends(require_current_user),
+    ) -> dict[str, str | int | bool]:
+        self._require_real_user(request, current_user)
+        self.policy.require_access(current_user)
+
+        if task_id == self.service.USER_FUNDS_TASK_ID:
+            log_directory = UserFundsCollectionConfig.LOG_DIRECTORY
+            log_filename = UserFundsCollectionConfig.LOG_FILENAME
+        elif task_id == self.service.SYSTEM_FUNDS_TASK_ID:
+            log_directory = SystemFundsConsolidationConfig.LOG_DIRECTORY
+            log_filename = SystemFundsConsolidationConfig.LOG_FILENAME
+        else:
+            raise HTTPException(status_code=404, detail="Unknown task")
+
+        log_path = Path(__file__).resolve().parents[4] / log_directory / log_filename
+        try:
+            with log_path.open("rb") as log_file:
+                log_file.seek(0, 2)
+                total_bytes = log_file.tell()
+                start = max(0, total_bytes - limit_bytes)
+                log_file.seek(start)
+                content = log_file.read(limit_bytes)
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Task log is not available yet") from None
+        except OSError:
+            raise HTTPException(status_code=503, detail="Unable to read task log") from None
+
+        if start > 0:
+            newline_index = content.find(b"\\n")
+            if newline_index >= 0:
+                content = content[newline_index + 1:]
+
+        return {
+            "task_id": task_id,
+            "content": content.decode("utf-8", errors="replace"),
+            "limit_bytes": limit_bytes,
+            "truncated": start > 0,
+        }
+
+    def clear_task_log(
+        self,
+        task_id: str,
+        request: Request,
+        current_user: AuthenticatedUser = Depends(require_current_user),
+    ) -> dict[str, str | bool]:
+        self._require_real_user(request, current_user)
+        self.policy.require_access(current_user)
+
+        if task_id == self.service.USER_FUNDS_TASK_ID:
+            log_directory = UserFundsCollectionConfig.LOG_DIRECTORY
+            log_filename = UserFundsCollectionConfig.LOG_FILENAME
+        elif task_id == self.service.SYSTEM_FUNDS_TASK_ID:
+            log_directory = SystemFundsConsolidationConfig.LOG_DIRECTORY
+            log_filename = SystemFundsConsolidationConfig.LOG_FILENAME
+        else:
+            raise HTTPException(status_code=404, detail="Unknown task")
+
+        log_path = Path(__file__).resolve().parents[4] / log_directory / log_filename
+        try:
+            with log_path.open("wb"):
+                pass
+        except OSError:
+            raise HTTPException(status_code=503, detail="Unable to clear task log") from None
+
+        return {"task_id": task_id, "cleared": True}
 
     def get_config(
         self,
@@ -115,7 +200,8 @@ class SystemWalletsManagementRoutes:
             status="updated",
             enabled=state["enabled"],
             schedule_minute_utc=state["schedule_minute_utc"],
-            message="Task settings updated",
+            message="Task schedule settings updated",
+            celery_task_id=None,
         )
 
     def run_task(

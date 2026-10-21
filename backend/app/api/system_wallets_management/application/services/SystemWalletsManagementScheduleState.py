@@ -2,14 +2,23 @@
 from redis import Redis
 
 from app.core.config import get_settings
-from app.core.scheduling.SystemWalletsManagementTaskRegistry import (
-    SystemWalletsManagementTaskRegistry,
-)
 
 
 class SystemWalletsManagementScheduleState:
-    KEY_PREFIX = SystemWalletsManagementTaskRegistry.STATE_KEY_PREFIX
-    TASK_DEFAULTS = SystemWalletsManagementTaskRegistry.TASK_DEFAULTS
+    KEY_PREFIX = "payments_core:system_wallets_management:schedule"
+
+    TASK_DEFAULTS = {
+        "user-funds-collection": {
+            "schedule_name": "user-funds-collection-hourly-probe",
+            "task_name": "payments_core.user_funds_collection_schedule_probe",
+            "minute": 5,
+        },
+        "system-funds-consolidation": {
+            "schedule_name": "system-funds-consolidation-hourly",
+            "task_name": "payments_core.system_funds_consolidation_hourly",
+            "minute": 15,
+        },
+    }
 
     def __init__(self) -> None:
         self.redis = Redis.from_url(

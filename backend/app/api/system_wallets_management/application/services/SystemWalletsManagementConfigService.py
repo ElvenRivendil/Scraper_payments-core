@@ -25,11 +25,12 @@ class SystemWalletsManagementConfigService:
         self.schedule_state = SystemWalletsManagementScheduleState()
 
     def get_config(self) -> SystemWalletsManagementConfigResponse:
-        tasks = [
-            self._user_funds_config(),
-            self._system_funds_config(),
-        ]
-        return SystemWalletsManagementConfigResponse(tasks=tasks)
+        return SystemWalletsManagementConfigResponse(
+            tasks=[
+                self._user_funds_config(),
+                self._system_funds_config(),
+            ]
+        )
 
     @staticmethod
     def _schedule_description(enabled: bool, minute: int) -> str:
@@ -41,7 +42,6 @@ class SystemWalletsManagementConfigService:
         state = self.schedule_state.get_state(self.USER_FUNDS_TASK_ID)
         enabled = bool(state["enabled"])
         minute = int(state["schedule_minute_utc"])
-        schedule_text = self._schedule_description(enabled, minute)
         pairs = UserFundsCollectionConfig.get_wallet_pairs()
         return SystemWalletsManagementTaskConfig(
             task_id=self.USER_FUNDS_TASK_ID,
@@ -51,7 +51,7 @@ class SystemWalletsManagementConfigService:
                 "into the corresponding system wallet."
             ),
             operation="One-to-one user funds collection",
-            schedule=schedule_text,
+            schedule=self._schedule_description(enabled, minute),
             schedule_minute_utc=minute,
             enabled=enabled,
             currency_code=UserFundsCollectionConfig.CURRENCY_CODE,
@@ -66,7 +66,6 @@ class SystemWalletsManagementConfigService:
         state = self.schedule_state.get_state(self.SYSTEM_FUNDS_TASK_ID)
         enabled = bool(state["enabled"])
         minute = int(state["schedule_minute_utc"])
-        schedule_text = self._schedule_description(enabled, minute)
         return SystemWalletsManagementTaskConfig(
             task_id=self.SYSTEM_FUNDS_TASK_ID,
             task_name="System Funds Consolidation",
@@ -75,7 +74,7 @@ class SystemWalletsManagementConfigService:
                 "wallets into the destination system wallet."
             ),
             operation="Many-to-one system funds consolidation",
-            schedule=schedule_text,
+            schedule=self._schedule_description(enabled, minute),
             schedule_minute_utc=minute,
             enabled=enabled,
             currency_code=config.CURRENCY_CODE,
