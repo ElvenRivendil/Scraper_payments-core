@@ -78,11 +78,7 @@ class SystemWalletsManagementScheduler(Scheduler):
                 args=(),
                 kwargs={},
                 options={},
-                last_run_at=(
-                    current_entry.last_run_at
-                    if current_entry is not None
-                    else None
-                ),
+                last_run_at=self.app.now(),
                 total_run_count=(
                     current_entry.total_run_count
                     if current_entry is not None
