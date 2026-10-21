@@ -26,11 +26,12 @@ class OneToManyOperation:
         session: Session,
         *,
         execution_time: datetime,
+        config_class=OneToManyConfig,
     ) -> dict[str, int]:
         if execution_time.tzinfo is None:
             raise ValueError("Execution time must be timezone-aware.")
 
-        config = OneToManyConfig
+        config = config_class
         config.validate()
         hour_key = execution_time.astimezone(timezone.utc).strftime("%Y%m%dT%H")
         required_codes = (

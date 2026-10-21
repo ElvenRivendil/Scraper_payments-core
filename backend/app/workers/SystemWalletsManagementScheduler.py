@@ -41,7 +41,9 @@ class SystemWalletsManagementScheduler(Scheduler):
                 state = self.state_redis.hgetall(
                     f"{SystemWalletsManagementTaskRegistry.STATE_KEY_PREFIX}:{task_id}"
                 )
-                enabled = state.get("enabled", "true").lower() == "true"
+                enabled = state.get(
+                    "enabled", str(defaults.get("enabled", True)).lower()
+                ).lower() == "true"
                 minute = int(state.get("schedule_minute_utc", defaults["minute"]))
                 if not 0 <= minute <= 59:
                     raise ValueError(f"Invalid schedule minute for {task_id}")

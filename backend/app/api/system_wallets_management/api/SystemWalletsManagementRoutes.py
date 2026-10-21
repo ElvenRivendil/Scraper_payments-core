@@ -24,6 +24,7 @@ from pathlib import Path
 from app.core.auth import AuthenticatedUser, require_current_user
 from app.services.UserFundsCollection.domain.config.UserFundsCollectionConfig import UserFundsCollectionConfig
 from app.services.SystemFundsConsolidation.domain.config.SystemFundsConsolidationConfig import SystemFundsConsolidationConfig
+from app.services.SystemFundsConsolidation.domain.config.SystemFundsDistributionConfig import SystemFundsDistributionConfig
 from app.core.authorization.SystemWalletAccessPolicy import SystemWalletAccessPolicy
 
 
@@ -87,6 +88,9 @@ class SystemWalletsManagementRoutes:
         elif task_id == self.service.SYSTEM_FUNDS_TASK_ID:
             log_directory = SystemFundsConsolidationConfig.LOG_DIRECTORY
             log_filename = SystemFundsConsolidationConfig.LOG_FILENAME
+        elif task_id == self.service.SYSTEM_FUNDS_DISTRIBUTION_TASK_ID:
+            log_directory = SystemFundsDistributionConfig.LOG_DIRECTORY
+            log_filename = SystemFundsDistributionConfig.LOG_FILENAME
         else:
             raise HTTPException(status_code=404, detail="Unknown task")
 
@@ -130,6 +134,9 @@ class SystemWalletsManagementRoutes:
         elif task_id == self.service.SYSTEM_FUNDS_TASK_ID:
             log_directory = SystemFundsConsolidationConfig.LOG_DIRECTORY
             log_filename = SystemFundsConsolidationConfig.LOG_FILENAME
+        elif task_id == self.service.SYSTEM_FUNDS_DISTRIBUTION_TASK_ID:
+            log_directory = SystemFundsDistributionConfig.LOG_DIRECTORY
+            log_filename = SystemFundsDistributionConfig.LOG_FILENAME
         else:
             raise HTTPException(status_code=404, detail="Unknown task")
 

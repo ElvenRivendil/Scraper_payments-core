@@ -15,6 +15,7 @@ class SystemWalletsManagementTaskConfig(BaseModel):
     currency_code: str
     source_wallet_codes: list[str]
     destination_wallet_codes: list[str]
+    destination_shares: list[dict[str, str | int]] = Field(default_factory=list)
     fee_status: Literal["not_configured"]
     fee: None = None
 

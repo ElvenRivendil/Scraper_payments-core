@@ -6,6 +6,9 @@ from app.api.system_wallets_management.domain.models.SystemWalletsManagementConf
 from app.services.SystemFundsConsolidation.domain.config.ManyToOneConfig import (
     ManyToOneConfig,
 )
+from app.services.SystemFundsConsolidation.domain.config.SystemFundsDistributionConfig import (
+    SystemFundsDistributionConfig,
+)
 from app.services.UserFundsCollection.domain.config.UserFundsCollectionConfig import (
     UserFundsCollectionConfig,
 )
@@ -20,6 +23,7 @@ from app.core.scheduling.SystemWalletsManagementTaskRegistry import (
 class SystemWalletsManagementConfigService:
     USER_FUNDS_TASK_ID = SystemWalletsManagementTaskRegistry.USER_FUNDS_TASK_ID
     SYSTEM_FUNDS_TASK_ID = SystemWalletsManagementTaskRegistry.SYSTEM_FUNDS_TASK_ID
+    SYSTEM_FUNDS_DISTRIBUTION_TASK_ID = SystemWalletsManagementTaskRegistry.SYSTEM_FUNDS_DISTRIBUTION_TASK_ID
 
     def __init__(self) -> None:
         self.schedule_state = SystemWalletsManagementScheduleState()
@@ -29,6 +33,7 @@ class SystemWalletsManagementConfigService:
             tasks=[
                 self._user_funds_config(),
                 self._system_funds_config(),
+                self._system_funds_distribution_config(),
             ]
         )
 
@@ -57,6 +62,33 @@ class SystemWalletsManagementConfigService:
             currency_code=UserFundsCollectionConfig.CURRENCY_CODE,
             source_wallet_codes=[source for source, _ in pairs],
             destination_wallet_codes=[destination for _, destination in pairs],
+            fee_status="not_configured",
+            fee=None,
+        )
+
+    def _system_funds_distribution_config(self) -> SystemWalletsManagementTaskConfig:
+        config = SystemFundsDistributionConfig
+        state = self.schedule_state.get_state(self.SYSTEM_FUNDS_DISTRIBUTION_TASK_ID)
+        enabled = bool(state["enabled"])
+        minute = int(state["schedule_minute_utc"])
+        return SystemWalletsManagementTaskConfig(
+            task_id=self.SYSTEM_FUNDS_DISTRIBUTION_TASK_ID,
+            task_name="System Funds Distribution",
+            description=(
+                "Distributes available SCR balance from SCAP to SPAP and WRAP "
+                "using configured proportional shares."
+            ),
+            operation="One-to-many system funds distribution",
+            schedule=self._schedule_description(enabled, minute),
+            schedule_minute_utc=minute,
+            enabled=enabled,
+            currency_code=config.CURRENCY_CODE,
+            source_wallet_codes=[config.SOURCE_WALLET_CODE],
+            destination_wallet_codes=list(config.DESTINATION_WALLET_CODES),
+            destination_shares=[
+                {"wallet_code": code, "percentage": config.DESTINATION_WEIGHTS[code]}
+                for code in config.DESTINATION_WALLET_CODES
+            ],
             fee_status="not_configured",
             fee=None,
         )

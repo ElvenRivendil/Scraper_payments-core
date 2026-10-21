@@ -18,6 +18,12 @@ class SystemWalletsManagementScheduleState:
             "task_name": "payments_core.system_funds_consolidation_hourly",
             "minute": 15,
         },
+        "system-funds-distribution": {
+            "schedule_name": "system-funds-distribution-hourly",
+            "task_name": "payments_core.system_funds_distribution_hourly",
+            "minute": 10,
+            "enabled": True,
+        },
     }
 
     def __init__(self) -> None:
@@ -30,7 +36,9 @@ class SystemWalletsManagementScheduleState:
         defaults = self.TASK_DEFAULTS[task_id]
         stored = self.redis.hgetall(f"{self.KEY_PREFIX}:{task_id}")
         return {
-            "enabled": stored.get("enabled", "true").lower() == "true",
+            "enabled": stored.get(
+                "enabled", str(defaults.get("enabled", True)).lower()
+            ).lower() == "true",
             "schedule_minute_utc": int(
                 stored.get("schedule_minute_utc", defaults["minute"])
             ),

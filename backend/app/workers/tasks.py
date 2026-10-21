@@ -11,11 +11,15 @@ from app.core.db import create_engine_and_session
 from app.core.execution_logging.ServiceExecutionLogger import ServiceExecutionLogger
 from app.services.UserFundsCollection.domain.config.UserFundsCollectionConfig import UserFundsCollectionConfig
 from app.services.SystemFundsConsolidation.domain.config.SystemFundsConsolidationConfig import SystemFundsConsolidationConfig
+from app.services.SystemFundsConsolidation.domain.config.SystemFundsDistributionConfig import SystemFundsDistributionConfig
 from app.services.UserFundsCollection.application.services.UserFundsCollectionService import (
     UserFundsCollectionService,
 )
 from app.services.SystemFundsConsolidation.application.operations.ManyToOneOperation import (
     ManyToOneOperation,
+)
+from app.services.SystemFundsConsolidation.application.operations.OneToManyOperation import (
+    OneToManyOperation,
 )
 from app.services.webhooks import process_webhook_event
 from app.workers.celery_app import celery_app
@@ -128,6 +132,46 @@ def user_funds_collection_schedule_probe() -> dict[str, int | str]:
             "users_total": len(user_ids),
             "users_succeeded": succeeded,
             "users_failed": failed,
+        }
+
+
+@celery_app.task(name="payments_core.system_funds_distribution_hourly")
+def system_funds_distribution_hourly() -> dict[str, int | str]:
+    execution = ServiceExecutionLogger(
+        service_name="system_funds_distribution",
+        log_file=Path(SystemFundsDistributionConfig.LOG_DIRECTORY) / SystemFundsDistributionConfig.LOG_FILENAME,
+        console_logger=logger,
+    )
+    with execution:
+        execution_time = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
+        try:
+            with _session_factory() as session:
+                transferred = OneToManyOperation.execute(
+                    session,
+                    execution_time=execution_time,
+                    config_class=SystemFundsDistributionConfig,
+                )
+        except Exception as exc:
+            execution.record_error("System funds distribution failed", exception=exc)
+            execution.set_status("failed")
+            logger.exception(
+                "System funds distribution failed: hour=%s",
+                execution_time.strftime("%Y%m%dT%H"),
+            )
+            raise
+
+        amount_minor = sum(transferred.values())
+        execution.set_status("completed")
+        logger.info(
+            "System funds distribution finished: hour=%s wallets_transferred=%s amount_minor=%s",
+            execution_time.strftime("%Y%m%dT%H"),
+            len(transferred),
+            amount_minor,
+        )
+        return {
+            "status": "completed",
+            "wallets_transferred": len(transferred),
+            "amount_minor": amount_minor,
         }
 
 

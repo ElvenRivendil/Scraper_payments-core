@@ -6,6 +6,7 @@ class SystemWalletsManagementTaskRegistry:
     STATE_KEY_PREFIX = "payments_core:system_wallets_management:schedule"
     USER_FUNDS_TASK_ID = "user-funds-collection"
     SYSTEM_FUNDS_TASK_ID = "system-funds-consolidation"
+    SYSTEM_FUNDS_DISTRIBUTION_TASK_ID = "system-funds-distribution"
     TASK_DEFAULTS: dict[str, dict[str, Any]] = {
         USER_FUNDS_TASK_ID: {
             "schedule_name": "user-funds-collection-hourly-probe",
@@ -16,5 +17,11 @@ class SystemWalletsManagementTaskRegistry:
             "schedule_name": "system-funds-consolidation-hourly",
             "task_name": "payments_core.system_funds_consolidation_hourly",
             "minute": 15,
+        },
+        SYSTEM_FUNDS_DISTRIBUTION_TASK_ID: {
+            "schedule_name": "system-funds-distribution-hourly",
+            "task_name": "payments_core.system_funds_distribution_hourly",
+            "minute": 10,
+            "enabled": True,
         },
     }
