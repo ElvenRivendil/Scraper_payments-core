@@ -28,6 +28,7 @@ from app.scripe.api.ScripeSyaWithdrawalRoutes import ScripeSyaWithdrawalRoutes
 from app.scripe.api.SystemWalletAccountsRoutes import SystemWalletAccountsRoutes
 from app.api.helm.api.HelmTariffRoutes import HelmTariffRoutes
 from app.api.system_wallets_management.api.SystemWalletsManagementRoutes import SystemWalletsManagementRoutes
+from app.api.order_position_execution_fees.api.OrderPositionExecutionFeesRoutes import OrderPositionExecutionFeesRoutes
 from app.features.transfers.api.TransferRoutes import TransferRoutes
 
 
@@ -86,6 +87,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(SystemWalletAccountsRoutes().router)
     app.include_router(HelmTariffRoutes().router)
     app.include_router(SystemWalletsManagementRoutes().router)
+    app.include_router(OrderPositionExecutionFeesRoutes().router)
     app.include_router(TransferRoutes().router)
     app.include_router(health_router)
     app.include_router(capabilities_router)
