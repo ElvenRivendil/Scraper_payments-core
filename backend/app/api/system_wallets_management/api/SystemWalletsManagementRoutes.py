@@ -13,6 +13,12 @@ from app.api.system_wallets_management.application.services.SystemWalletsManagem
 from app.api.system_wallets_management.domain.models.SystemWalletsManagementTaskUpdateRequest import (
     SystemWalletsManagementTaskUpdateRequest,
 )
+from app.api.system_wallets_management.domain.models.SystemFundsDistributionSharesUpdateRequest import (
+    SystemFundsDistributionSharesUpdateRequest,
+)
+from app.api.system_wallets_management.application.services.SystemFundsDistributionSharesState import (
+    SystemFundsDistributionSharesState,
+)
 from app.api.system_wallets_management.domain.models.SystemWalletsManagementTaskActionResponse import (
     SystemWalletsManagementTaskActionResponse,
 )
@@ -37,6 +43,7 @@ class SystemWalletsManagementRoutes:
         self.policy = SystemWalletAccessPolicy()
         self.service = SystemWalletsManagementConfigService()
         self.task_service = SystemWalletsManagementTaskService()
+        self.distribution_shares_state = SystemFundsDistributionSharesState()
         self.router.add_api_route(
             "/tasks/{task_id}",
             self.get_task_state,
@@ -70,6 +77,16 @@ class SystemWalletsManagementRoutes:
             self.get_config,
             methods=["GET"],
             response_model=SystemWalletsManagementConfigResponse,
+        )
+        self.router.add_api_route(
+            "/distribution-shares",
+            self.get_distribution_shares,
+            methods=["GET"],
+        )
+        self.router.add_api_route(
+            "/distribution-shares",
+            self.update_distribution_shares,
+            methods=["PATCH"],
         )
 
     def get_task_log(
@@ -157,6 +174,54 @@ class SystemWalletsManagementRoutes:
         self._require_real_user(request, current_user)
         self.policy.require_access(current_user)
         return self.service.get_config()
+
+    def get_distribution_shares(
+        self,
+        request: Request,
+        current_user: AuthenticatedUser = Depends(require_current_user),
+    ) -> dict[str, list[dict[str, str | int]]]:
+        self._require_real_user(request, current_user)
+        self.policy.require_access(current_user)
+        try:
+            shares = self.distribution_shares_state.get_shares()
+        except Exception:
+            raise HTTPException(
+                status_code=503,
+                detail="Unable to read distribution shares",
+            ) from None
+        return {
+            "destination_shares": [
+                {"wallet_code": code, "percentage": shares[code]}
+                for code in ("SPAP", "WRAP")
+            ]
+        }
+
+    def update_distribution_shares(
+        self,
+        payload: SystemFundsDistributionSharesUpdateRequest,
+        request: Request,
+        current_user: AuthenticatedUser = Depends(require_current_user),
+    ) -> dict[str, list[dict[str, str | int]]]:
+        self._require_real_user(request, current_user)
+        self.policy.require_access(current_user)
+        try:
+            shares = self.distribution_shares_state.update_shares(
+                payload.spap_percentage,
+                payload.wrap_percentage,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        except Exception:
+            raise HTTPException(
+                status_code=503,
+                detail="Unable to save distribution shares",
+            ) from None
+        return {
+            "destination_shares": [
+                {"wallet_code": code, "percentage": shares[code]}
+                for code in ("SPAP", "WRAP")
+            ]
+        }
 
     def get_task_state(
         self,

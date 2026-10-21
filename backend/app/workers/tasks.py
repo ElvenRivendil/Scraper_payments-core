@@ -9,6 +9,9 @@ from app.api.helm.infrastructure.clients.HelmApiClient import HelmApiClient
 from app.core.config import get_settings
 from app.core.db import create_engine_and_session
 from app.core.execution_logging.ServiceExecutionLogger import ServiceExecutionLogger
+from app.api.system_wallets_management.application.services.SystemFundsDistributionSharesState import (
+    SystemFundsDistributionSharesState,
+)
 from app.services.UserFundsCollection.domain.config.UserFundsCollectionConfig import UserFundsCollectionConfig
 from app.services.SystemFundsConsolidation.domain.config.SystemFundsConsolidationConfig import SystemFundsConsolidationConfig
 from app.services.SystemFundsConsolidation.domain.config.SystemFundsDistributionConfig import SystemFundsDistributionConfig
@@ -145,11 +148,17 @@ def system_funds_distribution_hourly() -> dict[str, int | str]:
     with execution:
         execution_time = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
         try:
+            shares = SystemFundsDistributionSharesState().get_shares()
+            runtime_config = type(
+                "RuntimeSystemFundsDistributionConfig",
+                (SystemFundsDistributionConfig,),
+                {"DESTINATION_WEIGHTS": shares},
+            )
             with _session_factory() as session:
                 transferred = OneToManyOperation.execute(
                     session,
                     execution_time=execution_time,
-                    config_class=SystemFundsDistributionConfig,
+                    config_class=runtime_config,
                 )
         except Exception as exc:
             execution.record_error("System funds distribution failed", exception=exc)

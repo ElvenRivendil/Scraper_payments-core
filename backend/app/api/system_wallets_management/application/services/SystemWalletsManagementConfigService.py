@@ -15,6 +15,9 @@ from app.services.UserFundsCollection.domain.config.UserFundsCollectionConfig im
 from app.api.system_wallets_management.application.services.SystemWalletsManagementScheduleState import (
     SystemWalletsManagementScheduleState,
 )
+from app.api.system_wallets_management.application.services.SystemFundsDistributionSharesState import (
+    SystemFundsDistributionSharesState,
+)
 from app.core.scheduling.SystemWalletsManagementTaskRegistry import (
     SystemWalletsManagementTaskRegistry,
 )
@@ -27,6 +30,7 @@ class SystemWalletsManagementConfigService:
 
     def __init__(self) -> None:
         self.schedule_state = SystemWalletsManagementScheduleState()
+        self.distribution_shares_state = SystemFundsDistributionSharesState()
 
     def get_config(self) -> SystemWalletsManagementConfigResponse:
         return SystemWalletsManagementConfigResponse(
@@ -68,6 +72,7 @@ class SystemWalletsManagementConfigService:
 
     def _system_funds_distribution_config(self) -> SystemWalletsManagementTaskConfig:
         config = SystemFundsDistributionConfig
+        shares = self.distribution_shares_state.get_shares()
         state = self.schedule_state.get_state(self.SYSTEM_FUNDS_DISTRIBUTION_TASK_ID)
         enabled = bool(state["enabled"])
         minute = int(state["schedule_minute_utc"])
@@ -86,7 +91,7 @@ class SystemWalletsManagementConfigService:
             source_wallet_codes=[config.SOURCE_WALLET_CODE],
             destination_wallet_codes=list(config.DESTINATION_WALLET_CODES),
             destination_shares=[
-                {"wallet_code": code, "percentage": config.DESTINATION_WEIGHTS[code]}
+                {"wallet_code": code, "percentage": shares[code]}
                 for code in config.DESTINATION_WALLET_CODES
             ],
             fee_status="not_configured",

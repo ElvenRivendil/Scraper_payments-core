@@ -65,9 +65,14 @@ class OneToManyOperation:
                     max_amount_minor=config.DESTINATION_MAX_AMOUNTS_MINOR.get(code),
                 )
                 for code in config.DESTINATION_WALLET_CODES
+                if config.DESTINATION_WEIGHTS[code] > 0
             )
             strategy = config.DISTRIBUTION_STRATEGY()
-            allocations = strategy.allocate(available, targets)
+            allocations = {
+                code: 0
+                for code in config.DESTINATION_WALLET_CODES
+            }
+            allocations.update(strategy.allocate(available, targets))
 
             if set(allocations) != set(config.DESTINATION_WALLET_CODES):
                 raise ValueError("Distribution strategy returned unexpected destinations.")

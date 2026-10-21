@@ -41,8 +41,13 @@ class SystemFundsDistributionConfig:
             raise ValueError("Destination wallet codes must be unique.")
         if set(cls.DESTINATION_WEIGHTS) != set(cls.DESTINATION_WALLET_CODES):
             raise ValueError("Distribution weights must match destination wallets.")
-        if any(weight <= 0 for weight in cls.DESTINATION_WEIGHTS.values()):
-            raise ValueError("Distribution weights must be positive.")
+        if any(
+            type(weight) is not int or not 0 <= weight <= 100
+            for weight in cls.DESTINATION_WEIGHTS.values()
+        ):
+            raise ValueError("Distribution weights must be integers between 0 and 100.")
+        if sum(cls.DESTINATION_WEIGHTS.values()) != 100:
+            raise ValueError("Distribution weights must sum to 100.")
         if set(cls.DESTINATION_PRIORITIES) != set(cls.DESTINATION_WALLET_CODES):
             raise ValueError("Distribution priorities must match destination wallets.")
         if any(amount < 1 for amount in cls.DESTINATION_MAX_AMOUNTS_MINOR.values()):
