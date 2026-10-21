@@ -98,6 +98,45 @@ class HelmApiClient:
 
         return user_ids
 
+    def get_internal_user_tariff_entity(
+        self,
+        user_id: UUID,
+        entity_key: str,
+        internal_secret: str,
+    ) -> dict[str, Any]:
+        if not internal_secret:
+            raise RuntimeError("Helm internal API secret is not configured")
+        if not entity_key.strip():
+            raise ValueError("Tariff entity key must not be empty")
+
+        try:
+            response = httpx.get(
+                f"{self.base_url}/api/internal/user-tariffs/{user_id}/{entity_key}",
+                headers={"X-Helm-Internal-Secret": internal_secret},
+                timeout=self.timeout,
+            )
+        except httpx.TimeoutException:
+            raise RuntimeError("Helm internal tariff request timed out") from None
+        except httpx.RequestError:
+            raise RuntimeError("Helm internal tariff service is unavailable") from None
+
+        if response.status_code == 404:
+            raise LookupError("Helm user tariff profile or entity was not found")
+        if response.status_code in (401, 403):
+            raise RuntimeError("Helm rejected the internal API secret")
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"Helm internal tariff request failed with HTTP {response.status_code}"
+            )
+
+        try:
+            payload = response.json()
+        except ValueError:
+            raise RuntimeError("Helm returned invalid JSON for internal tariffs") from None
+        if not isinstance(payload, dict):
+            raise RuntimeError("Helm returned an invalid internal tariff response")
+        return payload
+
     def _get(self, path: str, authorization: str) -> dict[str, Any]:
         try:
             response = httpx.get(

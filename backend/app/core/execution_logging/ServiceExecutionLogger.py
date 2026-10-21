@@ -61,6 +61,12 @@ class ServiceExecutionLogger:
         )
         return self
 
+    def record_event(self, message: str) -> None:
+        details = f"EVENT message={self._single_line(message)}"
+        self._write(logging.INFO, details)
+        if self._file_error is not None:
+            self.console_logger.info("%s", details)
+
     def record_error(
         self,
         message: str,
