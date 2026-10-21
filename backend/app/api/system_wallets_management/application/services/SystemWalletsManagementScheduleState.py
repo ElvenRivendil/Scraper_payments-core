@@ -24,6 +24,12 @@ class SystemWalletsManagementScheduleState:
             "minute": 10,
             "enabled": True,
         },
+        "system-wallets-aggregation": {
+            "schedule_name": "system-wallets-aggregation-hourly",
+            "task_name": "payments_core.system_wallets_aggregation_hourly",
+            "minute": 0,
+            "enabled": True,
+        },
     }
 
     def __init__(self) -> None:

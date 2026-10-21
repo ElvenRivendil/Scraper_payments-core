@@ -7,6 +7,7 @@ class SystemWalletsManagementTaskRegistry:
     USER_FUNDS_TASK_ID = "user-funds-collection"
     SYSTEM_FUNDS_TASK_ID = "system-funds-consolidation"
     SYSTEM_FUNDS_DISTRIBUTION_TASK_ID = "system-funds-distribution"
+    SYSTEM_WALLETS_AGGREGATION_TASK_ID = "system-wallets-aggregation"
     TASK_DEFAULTS: dict[str, dict[str, Any]] = {
         USER_FUNDS_TASK_ID: {
             "schedule_name": "user-funds-collection-hourly-probe",
@@ -22,6 +23,12 @@ class SystemWalletsManagementTaskRegistry:
             "schedule_name": "system-funds-distribution-hourly",
             "task_name": "payments_core.system_funds_distribution_hourly",
             "minute": 10,
+            "enabled": True,
+        },
+        SYSTEM_WALLETS_AGGREGATION_TASK_ID: {
+            "schedule_name": "system-wallets-aggregation-hourly",
+            "task_name": "payments_core.system_wallets_aggregation_hourly",
+            "minute": 0,
             "enabled": True,
         },
     }

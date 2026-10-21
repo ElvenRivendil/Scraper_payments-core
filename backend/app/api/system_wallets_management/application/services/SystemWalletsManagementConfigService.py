@@ -12,6 +12,9 @@ from app.services.SystemFundsConsolidation.domain.config.SystemFundsDistribution
 from app.services.UserFundsCollection.domain.config.UserFundsCollectionConfig import (
     UserFundsCollectionConfig,
 )
+from app.services.SystemWalletsAggregation.domain.config.SystemWalletsAggregationConfig import (
+    SystemWalletsAggregationConfig,
+)
 from app.api.system_wallets_management.application.services.SystemWalletsManagementScheduleState import (
     SystemWalletsManagementScheduleState,
 )
@@ -27,6 +30,7 @@ class SystemWalletsManagementConfigService:
     USER_FUNDS_TASK_ID = SystemWalletsManagementTaskRegistry.USER_FUNDS_TASK_ID
     SYSTEM_FUNDS_TASK_ID = SystemWalletsManagementTaskRegistry.SYSTEM_FUNDS_TASK_ID
     SYSTEM_FUNDS_DISTRIBUTION_TASK_ID = SystemWalletsManagementTaskRegistry.SYSTEM_FUNDS_DISTRIBUTION_TASK_ID
+    SYSTEM_WALLETS_AGGREGATION_TASK_ID = SystemWalletsManagementTaskRegistry.SYSTEM_WALLETS_AGGREGATION_TASK_ID
 
     def __init__(self) -> None:
         self.schedule_state = SystemWalletsManagementScheduleState()
@@ -38,6 +42,7 @@ class SystemWalletsManagementConfigService:
                 self._user_funds_config(),
                 self._system_funds_config(),
                 self._system_funds_distribution_config(),
+                self._system_wallets_aggregation_config(),
             ]
         )
 
@@ -94,6 +99,30 @@ class SystemWalletsManagementConfigService:
                 {"wallet_code": code, "percentage": shares[code]}
                 for code in config.DESTINATION_WALLET_CODES
             ],
+            fee_status="not_configured",
+            fee=None,
+        )
+
+    def _system_wallets_aggregation_config(self) -> SystemWalletsManagementTaskConfig:
+        config = SystemWalletsAggregationConfig
+        state = self.schedule_state.get_state(self.SYSTEM_WALLETS_AGGREGATION_TASK_ID)
+        enabled = bool(state["enabled"])
+        minute = int(state["schedule_minute_utc"])
+        pairs = config.get_wallet_pairs()
+        return SystemWalletsManagementTaskConfig(
+            task_id=self.SYSTEM_WALLETS_AGGREGATION_TASK_ID,
+            task_name="System Wallets Aggregation",
+            description=(
+                "Aggregates available SCR balances from each configured "
+                "system wallet into its corresponding paired wallet."
+            ),
+            operation="System wallets aggregation",
+            schedule=self._schedule_description(enabled, minute),
+            schedule_minute_utc=minute,
+            enabled=enabled,
+            currency_code=config.CURRENCY_CODE,
+            source_wallet_codes=[source for source, _ in pairs],
+            destination_wallet_codes=[destination for _, destination in pairs],
             fee_status="not_configured",
             fee=None,
         )

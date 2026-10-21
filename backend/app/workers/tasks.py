@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from sqlalchemy import text
 from datetime import UTC, datetime
 
 from app.api.helm.infrastructure.clients.HelmApiClient import HelmApiClient
@@ -15,6 +16,12 @@ from app.api.system_wallets_management.application.services.SystemFundsDistribut
 from app.services.UserFundsCollection.domain.config.UserFundsCollectionConfig import UserFundsCollectionConfig
 from app.services.SystemFundsConsolidation.domain.config.SystemFundsConsolidationConfig import SystemFundsConsolidationConfig
 from app.services.SystemFundsConsolidation.domain.config.SystemFundsDistributionConfig import SystemFundsDistributionConfig
+from app.services.SystemWalletsAggregation.domain.config.SystemWalletsAggregationConfig import (
+    SystemWalletsAggregationConfig,
+)
+from app.services.SystemWalletsAggregation.application.services.SystemWalletsAggregationCoordinator import (
+    SystemWalletsAggregationCoordinator,
+)
 from app.services.UserFundsCollection.application.services.UserFundsCollectionService import (
     UserFundsCollectionService,
 )
@@ -229,3 +236,126 @@ def system_funds_consolidation_hourly() -> dict[str, int | str]:
             "wallets_transferred": len(transferred),
             "amount_minor": amount_minor,
         }
+
+
+@celery_app.task(name="payments_core.system_wallets_aggregation_hourly")
+def system_wallets_aggregation_hourly() -> dict:
+    execution = ServiceExecutionLogger(
+        service_name="system_wallets_aggregation",
+        log_file=Path(SystemWalletsAggregationConfig.LOG_DIRECTORY)
+        / SystemWalletsAggregationConfig.LOG_FILENAME,
+        console_logger=logger,
+    )
+    with execution:
+        lock_connection = _engine.connect()
+        lock_acquired = False
+        try:
+            lock_acquired = bool(
+                lock_connection.execute(
+                    text("SELECT pg_try_advisory_lock(:lock_key)"),
+                    {"lock_key": 7483921046217},
+                ).scalar_one()
+            )
+            if not lock_acquired:
+                execution.set_status("skipped")
+                logger.info(
+                    "System wallets aggregation skipped: another run is active"
+                )
+                return {
+                    "status": "skipped",
+                    "pairs_total": 0,
+                    "pairs_succeeded": 0,
+                    "pairs_failed": 0,
+                    "users_total": 0,
+                    "target_balance_minor": 0,
+                    "amount_minor": 0,
+                    "results": [],
+                }
+            execution_time = datetime.now(UTC).replace(
+                minute=0,
+                second=0,
+                microsecond=0,
+            )
+            if not settings.helm_internal_api_secret:
+                message = "Helm internal secret is not configured"
+                execution.record_error(message)
+                execution.set_status("configuration_error")
+                logger.error("System wallets aggregation aborted: %s", message)
+                return {
+                    "status": "configuration_error",
+                    "pairs_total": 0,
+                    "pairs_succeeded": 0,
+                    "pairs_failed": 0,
+                    "users_total": 0,
+                    "target_balance_minor": 0,
+                    "amount_minor": 0,
+                    "results": [],
+                }
+
+            try:
+                helm_client = HelmApiClient(settings.helm_auth_base_url)
+                user_ids = helm_client.get_active_user_ids(
+                    settings.helm_internal_api_secret,
+                )
+            except Exception as exc:
+                execution.record_error(
+                    "Active users could not be loaded",
+                    exception=exc,
+                )
+                execution.set_status("discovery_error")
+                logger.exception(
+                    "System wallets aggregation aborted: active users could not be loaded"
+                )
+                return {
+                    "status": "discovery_error",
+                    "pairs_total": 0,
+                    "pairs_succeeded": 0,
+                    "pairs_failed": 0,
+                    "users_total": 0,
+                    "target_balance_minor": 0,
+                    "amount_minor": 0,
+                    "results": [],
+                }
+
+            result = SystemWalletsAggregationCoordinator.execute(
+                _session_factory,
+                user_ids,
+                execution_time=execution_time,
+            )
+            for pair in result["results"]:
+                if pair["status"] != "completed":
+                    execution.record_error(
+                        "Wallet pair failed: "
+                        f"{pair['source_wallet_code']} -> "
+                        f"{pair['destination_wallet_code']}: "
+                        f"{pair.get('error', 'Unknown error')}"
+                    )
+
+            execution.set_status(result["status"])
+            logger.info(
+                "System wallets aggregation finished: hour=%s users=%s "
+                "pairs_succeeded=%s pairs_failed=%s target_balance_minor=%s "
+                "amount_minor=%s",
+                execution_time.strftime("%Y%m%dT%H"),
+                len(user_ids),
+                result["pairs_succeeded"],
+                result["pairs_failed"],
+                result["target_balance_minor"],
+                result["amount_minor"],
+            )
+            return result
+        finally:
+            try:
+                if lock_acquired:
+                    lock_connection.execute(
+                        text("SELECT pg_advisory_unlock(:lock_key)"),
+                        {"lock_key": 7483921046217},
+                    )
+            except Exception:
+                logger.exception(
+                    "Failed to release system wallets aggregation advisory lock"
+                )
+                _engine.dispose()
+                raise
+            finally:
+                lock_connection.close()
