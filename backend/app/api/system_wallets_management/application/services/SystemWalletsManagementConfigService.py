@@ -15,6 +15,9 @@ from app.services.UserFundsCollection.domain.config.UserFundsCollectionConfig im
 from app.services.SystemWalletsAggregation.domain.config.SystemWalletsAggregationConfig import (
     SystemWalletsAggregationConfig,
 )
+from app.services.SystemWalletsDistributionToSya.domain.config.SystemWalletsDistributionToSyaConfig import (
+    SystemWalletsDistributionToSyaConfig,
+)
 from app.api.system_wallets_management.application.services.SystemWalletsManagementScheduleState import (
     SystemWalletsManagementScheduleState,
 )
@@ -31,6 +34,7 @@ class SystemWalletsManagementConfigService:
     SYSTEM_FUNDS_TASK_ID = SystemWalletsManagementTaskRegistry.SYSTEM_FUNDS_TASK_ID
     SYSTEM_FUNDS_DISTRIBUTION_TASK_ID = SystemWalletsManagementTaskRegistry.SYSTEM_FUNDS_DISTRIBUTION_TASK_ID
     SYSTEM_WALLETS_AGGREGATION_TASK_ID = SystemWalletsManagementTaskRegistry.SYSTEM_WALLETS_AGGREGATION_TASK_ID
+    SYSTEM_WALLETS_DISTRIBUTION_TO_SYA_TASK_ID = SystemWalletsManagementTaskRegistry.SYSTEM_WALLETS_DISTRIBUTION_TO_SYA_TASK_ID
 
     def __init__(self) -> None:
         self.schedule_state = SystemWalletsManagementScheduleState()
@@ -43,6 +47,7 @@ class SystemWalletsManagementConfigService:
                 self._system_funds_config(),
                 self._system_funds_distribution_config(),
                 self._system_wallets_aggregation_config(),
+                self._system_wallets_distribution_to_sya_config(),
             ]
         )
 
@@ -123,6 +128,30 @@ class SystemWalletsManagementConfigService:
             currency_code=config.CURRENCY_CODE,
             source_wallet_codes=[source for source, _ in pairs],
             destination_wallet_codes=[destination for _, destination in pairs],
+            fee_status="not_configured",
+            fee=None,
+        )
+
+    def _system_wallets_distribution_to_sya_config(self) -> SystemWalletsManagementTaskConfig:
+        config = SystemWalletsDistributionToSyaConfig
+        state = self.schedule_state.get_state(self.SYSTEM_WALLETS_DISTRIBUTION_TO_SYA_TASK_ID)
+        enabled = bool(state["enabled"])
+        minute = int(state["schedule_minute_utc"])
+        return SystemWalletsManagementTaskConfig(
+            task_id=self.SYSTEM_WALLETS_DISTRIBUTION_TO_SYA_TASK_ID,
+            task_name="System Wallets Distribution to SYA",
+            description=(
+                "Calculates proportional shares from active users' available ER balances, "
+                "records the total virtually in ERP without debiting user ER wallets, "
+                "and distributes the available SPAP balance to user SYA wallets."
+            ),
+            operation="Proportional one-to-many distribution from SPAP to user SYA wallets",
+            schedule=self._schedule_description(enabled, minute),
+            schedule_minute_utc=minute,
+            enabled=enabled,
+            currency_code=config.CURRENCY_CODE,
+            source_wallet_codes=[config.SYSTEM_DISTRIBUTION_WALLET_CODE],
+            destination_wallet_codes=[config.USER_DESTINATION_WALLET_CODE],
             fee_status="not_configured",
             fee=None,
         )

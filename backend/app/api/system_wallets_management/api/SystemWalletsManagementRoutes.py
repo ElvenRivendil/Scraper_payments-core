@@ -32,6 +32,7 @@ from app.services.UserFundsCollection.domain.config.UserFundsCollectionConfig im
 from app.services.SystemFundsConsolidation.domain.config.SystemFundsConsolidationConfig import SystemFundsConsolidationConfig
 from app.services.SystemFundsConsolidation.domain.config.SystemFundsDistributionConfig import SystemFundsDistributionConfig
 from app.services.SystemWalletsAggregation.domain.config.SystemWalletsAggregationConfig import SystemWalletsAggregationConfig
+from app.services.SystemWalletsDistributionToSya.domain.config.SystemWalletsDistributionToSyaConfig import SystemWalletsDistributionToSyaConfig
 from app.core.authorization.SystemWalletAccessPolicy import SystemWalletAccessPolicy
 
 
@@ -112,6 +113,9 @@ class SystemWalletsManagementRoutes:
         elif task_id == self.service.SYSTEM_WALLETS_AGGREGATION_TASK_ID:
             log_directory = SystemWalletsAggregationConfig.LOG_DIRECTORY
             log_filename = SystemWalletsAggregationConfig.LOG_FILENAME
+        elif task_id == "system-wallets-distribution-to-sya":
+            log_directory = SystemWalletsDistributionToSyaConfig.LOG_DIRECTORY
+            log_filename = SystemWalletsDistributionToSyaConfig.LOG_FILENAME
         else:
             raise HTTPException(status_code=404, detail="Unknown task")
 
@@ -161,6 +165,9 @@ class SystemWalletsManagementRoutes:
         elif task_id == self.service.SYSTEM_WALLETS_AGGREGATION_TASK_ID:
             log_directory = SystemWalletsAggregationConfig.LOG_DIRECTORY
             log_filename = SystemWalletsAggregationConfig.LOG_FILENAME
+        elif task_id == "system-wallets-distribution-to-sya":
+            log_directory = SystemWalletsDistributionToSyaConfig.LOG_DIRECTORY
+            log_filename = SystemWalletsDistributionToSyaConfig.LOG_FILENAME
         else:
             raise HTTPException(status_code=404, detail="Unknown task")
 

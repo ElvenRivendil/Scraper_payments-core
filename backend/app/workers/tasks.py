@@ -22,6 +22,12 @@ from app.services.SystemWalletsAggregation.domain.config.SystemWalletsAggregatio
 from app.services.SystemWalletsAggregation.application.services.SystemWalletsAggregationCoordinator import (
     SystemWalletsAggregationCoordinator,
 )
+from app.services.SystemWalletsDistributionToSya.domain.config.SystemWalletsDistributionToSyaConfig import (
+    SystemWalletsDistributionToSyaConfig,
+)
+from app.services.SystemWalletsDistributionToSya.application.services.SystemWalletsDistributionToSyaCoordinator import (
+    SystemWalletsDistributionToSyaCoordinator,
+)
 from app.services.UserFundsCollection.application.services.UserFundsCollectionService import (
     UserFundsCollectionService,
 )
@@ -236,6 +242,75 @@ def system_funds_consolidation_hourly() -> dict[str, int | str]:
             "wallets_transferred": len(transferred),
             "amount_minor": amount_minor,
         }
+
+
+@celery_app.task(name="payments_core.system_wallets_distribution_to_sya_hourly")
+def system_wallets_distribution_to_sya_hourly() -> dict:
+    execution = ServiceExecutionLogger(
+        service_name="system_wallets_distribution_to_sya",
+        log_file=Path("logs") / "system_wallets_distribution_to_sya.log",
+        console_logger=logger,
+    )
+    with execution:
+        lock_connection = _engine.connect()
+        lock_acquired = False
+        try:
+            lock_acquired = bool(
+                lock_connection.execute(
+                    text("SELECT pg_try_advisory_lock(:lock_key)"),
+                    {"lock_key": 7483921046218},
+                ).scalar_one()
+            )
+            if not lock_acquired:
+                execution.set_status("skipped")
+                return {"status": "skipped", "users_total": 0, "transfer_count": 0}
+
+            execution_time = datetime.now(UTC).replace(minute=0, second=0, microsecond=0)
+            if not settings.helm_internal_api_secret:
+                message = "Helm internal secret is not configured"
+                execution.record_error(message)
+                execution.set_status("configuration_error")
+                return {"status": "configuration_error", "users_total": 0, "transfer_count": 0}
+
+            try:
+                helm_client = HelmApiClient(settings.helm_auth_base_url)
+                user_ids = helm_client.get_active_user_ids(settings.helm_internal_api_secret)
+            except Exception as exc:
+                execution.record_error("Active users could not be loaded", exception=exc)
+                execution.set_status("discovery_error")
+                logger.exception("System wallets distribution to SYA: active user discovery failed")
+                return {"status": "discovery_error", "users_total": 0, "transfer_count": 0}
+
+            result = SystemWalletsDistributionToSyaCoordinator.execute(
+                _session_factory,
+                user_ids,
+                execution_time=execution_time,
+            )
+            execution.set_status(result["status"])
+            logger.info(
+                "System wallets distribution to SYA finished: users=%s transfers=%s amount_minor=%s",
+                result.get("users_total", len(user_ids)),
+                result.get("transfer_count", 0),
+                result.get("transferred_minor", 0),
+            )
+            return result
+        except Exception as exc:
+            execution.record_error("System wallets distribution to SYA failed", exception=exc)
+            execution.set_status("failed")
+            raise
+        finally:
+            try:
+                if lock_acquired:
+                    lock_connection.execute(
+                        text("SELECT pg_advisory_unlock(:lock_key)"),
+                        {"lock_key": 7483921046218},
+                    )
+            except Exception:
+                logger.exception("Failed to release system wallets distribution to SYA advisory lock")
+                _engine.dispose()
+                raise
+            finally:
+                lock_connection.close()
 
 
 @celery_app.task(name="payments_core.system_wallets_aggregation_hourly")

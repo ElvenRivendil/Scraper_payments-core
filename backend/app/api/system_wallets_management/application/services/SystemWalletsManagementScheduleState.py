@@ -30,6 +30,12 @@ class SystemWalletsManagementScheduleState:
             "minute": 0,
             "enabled": True,
         },
+        "system-wallets-distribution-to-sya": {
+            "schedule_name": "system-wallets-distribution-to-sya-hourly",
+            "task_name": "payments_core.system_wallets_distribution_to_sya_hourly",
+            "minute": 20,
+            "enabled": True,
+        },
     }
 
     def __init__(self) -> None:
