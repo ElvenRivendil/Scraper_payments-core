@@ -29,6 +29,11 @@ from app.scripe.api.SystemWalletAccountsRoutes import SystemWalletAccountsRoutes
 from app.api.helm.api.HelmTariffRoutes import HelmTariffRoutes
 from app.api.system_wallets_management.api.SystemWalletsManagementRoutes import SystemWalletsManagementRoutes
 from app.api.order_position_execution_fees.api.OrderPositionExecutionFeesRoutes import OrderPositionExecutionFeesRoutes
+from app.api.position_percent_value_execution_fees.api.PositionPercentValueExecutionFeesRoutes import PositionPercentValueExecutionFeesRoutes
+from app.api.profitable_closed_trade_execution_fees.api.ProfitableClosedTradeExecutionFeesRoutes import ProfitableClosedTradeExecutionFeesRoutes
+from app.api.profitable_closed_trade_execution_fees.api.InternalProfitableClosedTradeExecutionFeesRoutes import (
+    InternalProfitableClosedTradeExecutionFeesRoutes,
+)
 from app.features.transfers.api.TransferRoutes import TransferRoutes
 
 
@@ -88,6 +93,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(HelmTariffRoutes().router)
     app.include_router(SystemWalletsManagementRoutes().router)
     app.include_router(OrderPositionExecutionFeesRoutes().router)
+    app.include_router(PositionPercentValueExecutionFeesRoutes().router)
+    app.include_router(ProfitableClosedTradeExecutionFeesRoutes().router)
+    app.include_router(InternalProfitableClosedTradeExecutionFeesRoutes().router)
     app.include_router(TransferRoutes().router)
     app.include_router(health_router)
     app.include_router(capabilities_router)
