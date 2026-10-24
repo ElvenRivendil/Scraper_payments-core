@@ -8,3 +8,4 @@ class ExecutionFeeServiceRunRequest(BaseModel):
     mode: Literal["paper", "live", "mock", "backtests"]
     volume_usdt: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=6)
     profit_usdt: Decimal | None = Field(default=None, ge=0, max_digits=18, decimal_places=6)
+    conversion_rate: Decimal = Field(default=Decimal("1"), gt=0, max_digits=18, decimal_places=8)

@@ -32,11 +32,15 @@ class ExecutionFeeServiceRoutes:
         config: type,
         executor: Callable[[Session, UUID, str, str, Decimal], object],
         input_field: str = "volume_usdt",
+        route_name: str | None = None,
+        pass_conversion_rate: bool = False,
     ) -> None:
         self.service_name = service_name
+        self.route_name = route_name or service_name
         self.config = config
         self.executor = executor
         self.input_field = input_field
+        self.pass_conversion_rate = pass_conversion_rate
         self.policy = SystemWalletAccessPolicy()
         self.control_service = ExecutionFeeServiceControlService(
             service_name=service_name,
@@ -47,8 +51,8 @@ class ExecutionFeeServiceRoutes:
             config=config,
         )
         self.router = APIRouter(
-            prefix=f"/admin/{service_name}",
-            tags=[f"admin-{service_name}"],
+            prefix=f"/admin/{self.route_name}",
+            tags=[f"admin-{self.route_name}"],
         )
         self.router.add_api_route(
             "/state",
@@ -122,13 +126,23 @@ class ExecutionFeeServiceRoutes:
                     f"{self.input_field}={input_value} "
                     f"caller_user_id={current_user.id} event_id={event_id}"
                 )
-                result = self.executor(
-                    session,
-                    current_user.id,
-                    event_id,
-                    payload.mode,
-                    input_value,
-                )
+                if self.pass_conversion_rate:
+                    result = self.executor(
+                        session,
+                        current_user.id,
+                        event_id,
+                        payload.mode,
+                        input_value,
+                        conversion_rate=payload.conversion_rate,
+                    )
+                else:
+                    result = self.executor(
+                        session,
+                        current_user.id,
+                        event_id,
+                        payload.mode,
+                        input_value,
+                    )
                 execution_logger.set_status("completed")
         except Exception as exc:
             raise HTTPException(
@@ -136,7 +150,7 @@ class ExecutionFeeServiceRoutes:
                 detail=f"{self.service_name} manual run failed: {exc}",
             ) from exc
 
-        return {
+        response = {
             "status": "completed",
             "service_name": self.service_name,
             "mode": payload.mode,
@@ -144,6 +158,9 @@ class ExecutionFeeServiceRoutes:
             "event_id": event_id,
             "result": jsonable_encoder(result),
         }
+        if self.pass_conversion_rate:
+            response["conversion_rate"] = str(payload.conversion_rate)
+        return response
 
     def get_logs(
         self,

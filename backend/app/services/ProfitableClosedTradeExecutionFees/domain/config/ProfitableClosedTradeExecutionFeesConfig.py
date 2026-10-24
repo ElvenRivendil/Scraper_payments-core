@@ -1,4 +1,6 @@
 # /* ../NauTrader_Helm/payments-core/backend/app/services/ProfitableClosedTradeExecutionFees/domain/config/ProfitableClosedTradeExecutionFeesConfig.py */
+from decimal import Decimal, ROUND_HALF_UP
+
 from app.services.ParameterizedExecutionFee.domain.config.ParameterizedExecutionFeeConfig import (
     ParameterizedExecutionFeeConfig,
 )
@@ -7,6 +9,10 @@ from app.services.ParameterizedExecutionFee.domain.config.ParameterizedExecution
 class ProfitableClosedTradeExecutionFeesConfig(ParameterizedExecutionFeeConfig):
     SERVICE_NAME = "profitable_closed_trade_execution_fees"
     PROFIT_CURRENCY_CODE = "USDT"
+    CONVERSION_RATE = Decimal("1")
+    USDT_PRECISION = 8
+    SCR_PRECISION = 8
+    CONVERSION_ROUNDING = ROUND_HALF_UP
     CURRENCY_CODE = "SCR"
     TARIFF_ENTITY_KEY = "position_collateral"
     TARIFF_KEY = "collateral_percent"

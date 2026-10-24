@@ -17,4 +17,6 @@ class ProfitableClosedTradeExecutionFeesRoutes(ExecutionFeeServiceRoutes):
             config=ProfitableClosedTradeExecutionFeesConfig,
             executor=RunProfitableClosedTradeExecutionFeeManualService.execute,
             input_field="profit_usdt",
+            route_name="profitable-closed-trade-execution-fees",
+            pass_conversion_rate=True,
         )

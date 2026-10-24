@@ -5,6 +5,10 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.schemas import TransferCreate
+from app.currency_conversion.application.services.CurrencyConversionService import (
+    CurrencyConversionService,
+)
+from app.scripe.domain.value_objects.ScripeAmount import ScripeAmount
 from app.services.transfers import create_transfer
 from app.services.ParameterizedExecutionFee.application.services.ParameterizedExecutionFeeService import (
     ParameterizedExecutionFeeService,
@@ -30,6 +34,7 @@ class ProfitableClosedTradeExecutionFeesService:
         event_id: str,
         mode: str,
         profit_usdt: Decimal,
+        conversion_rate: Decimal | None = None,
     ) -> ProfitableClosedTradeExecutionFeeResult:
         Config.validate()
         normalized_event_id = event_id.strip()
@@ -53,7 +58,17 @@ class ProfitableClosedTradeExecutionFeesService:
             tariff_entity_key=Config.TARIFF_ENTITY_KEY,
             percentage_key=Config.TARIFF_KEY,
         )
-        amount_minor = calculation.amount_minor
+        effective_rate = Config.CONVERSION_RATE if conversion_rate is None else conversion_rate
+        conversion = CurrencyConversionService.convert(
+            calculation.amount,
+            source_currency=Config.PROFIT_CURRENCY_CODE,
+            target_currency=Config.CURRENCY_CODE,
+            rate=effective_rate,
+            source_precision=Config.USDT_PRECISION,
+            target_precision=Config.SCR_PRECISION,
+            rounding=Config.CONVERSION_ROUNDING,
+        )
+        amount_minor = ScripeAmount.to_minor_units(conversion.output_amount)
         if amount_minor == 0:
             return ProfitableClosedTradeExecutionFeeResult(
                 status="no_fee",
@@ -90,6 +105,9 @@ class ProfitableClosedTradeExecutionFeesService:
                 "profit_usdt": str(profit_usdt),
                 "band_key": calculation.band_key,
                 "percent": str(calculation.percent),
+                "fee_usdt": str(calculation.amount),
+                "conversion_rate": str(effective_rate),
+                "fee_scr": str(conversion.output_amount),
                 "amount_minor": amount_minor,
                 "from_wallet_code": source.wallet_code,
                 "to_wallet_code": destination.wallet_code,

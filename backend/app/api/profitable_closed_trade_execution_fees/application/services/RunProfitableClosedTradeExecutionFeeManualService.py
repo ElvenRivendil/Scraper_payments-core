@@ -18,6 +18,7 @@ class RunProfitableClosedTradeExecutionFeeManualService:
         event_id: str,
         mode: str,
         profit_usdt: Decimal,
+        conversion_rate: Decimal = Decimal("1"),
     ) -> object:
         return ProfitableClosedTradeExecutionFeesService.execute(
             session,
@@ -25,4 +26,5 @@ class RunProfitableClosedTradeExecutionFeeManualService:
             event_id=event_id,
             mode=mode,
             profit_usdt=profit_usdt,
+            conversion_rate=conversion_rate,
         )

@@ -20,6 +20,7 @@ class InternalProfitableClosedTradeExecutionFeeRequest(BaseModel):
     event_id: str = Field(min_length=1, max_length=256)
     mode: Literal["paper", "live", "mock", "backtests"]
     profit_usdt: Decimal = Field(ge=0, max_digits=18, decimal_places=6)
+    conversion_rate: Decimal = Field(default=Decimal("1"), gt=0, max_digits=18, decimal_places=8)
 
 
 def require_internal_secret(
@@ -70,6 +71,7 @@ class InternalProfitableClosedTradeExecutionFeesRoutes:
                 event_id=payload.event_id,
                 mode=payload.mode,
                 profit_usdt=payload.profit_usdt,
+                conversion_rate=payload.conversion_rate,
             )
             session.commit()
         except (ValueError, LookupError) as exc:
@@ -90,4 +92,5 @@ class InternalProfitableClosedTradeExecutionFeesRoutes:
             "percent": str(result.percent),
             "event_id": payload.event_id,
             "profit_usdt": str(payload.profit_usdt),
+            "conversion_rate": str(payload.conversion_rate),
         }

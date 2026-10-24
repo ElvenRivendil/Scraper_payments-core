@@ -3,6 +3,8 @@
 from decimal import Decimal
 from uuid import UUID
 
+from app.scripe.domain.value_objects.ScripeAmount import ScripeAmount
+
 from app.services.ParameterizedExecutionFee.application.services.ResolveExecutionFeeBandsService import (
     ResolveExecutionFeeBandsService,
 )
@@ -32,10 +34,11 @@ class ParameterizedExecutionFeeService:
             percentage_key=percentage_key,
         )
         ordered_bands = tuple(sorted(bands, key=lambda band: band.from_value))
-        amount_minor = ParameterizedExecutionFeeCalculator.calculate(
+        amount = ParameterizedExecutionFeeCalculator.calculate_amount(
             volume=volume,
             bands=ordered_bands,
         )
+        amount_minor = ScripeAmount.to_minor_units(amount)
         selected_band = next(
             (
                 band for band in ordered_bands
@@ -49,6 +52,7 @@ class ParameterizedExecutionFeeService:
         return ParameterizedExecutionFeeResult(
             status="calculated" if amount_minor > 0 else "no_fee",
             amount_minor=amount_minor,
+            amount=amount,
             band_key=selected_band.band_key,
             percent=str(selected_band.percent),
         )

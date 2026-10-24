@@ -17,6 +17,17 @@ class ParameterizedExecutionFeeCalculator:
         volume: Decimal,
         bands: Sequence[ExecutionFeeBand],
     ) -> int:
+        return ScripeAmount.to_minor_units(
+            cls.calculate_amount(volume=volume, bands=bands)
+        )
+
+    @classmethod
+    def calculate_amount(
+        cls,
+        *,
+        volume: Decimal,
+        bands: Sequence[ExecutionFeeBand],
+    ) -> Decimal:
         if not isinstance(volume, Decimal):
             raise TypeError("Position volume must be Decimal.")
         if not volume.is_finite() or volume < 0:
@@ -52,4 +63,4 @@ class ParameterizedExecutionFeeCalculator:
             raise LookupError("Position volume must match exactly one execution fee band.")
 
         fee_amount = volume * matching_bands[0].percent / Decimal("100")
-        return ScripeAmount.to_minor_units(fee_amount)
+        return fee_amount
