@@ -5,7 +5,10 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from time import perf_counter
+from threading import Lock
 from typing import Self
+
+_SHARED_LOG_WRITE_LOCK = Lock()
 
 
 class ServiceExecutionLogger:
@@ -34,6 +37,12 @@ class ServiceExecutionLogger:
         self._file_logger.propagate = False
         self._handler: logging.FileHandler | None = None
         self._file_error: OSError | None = None
+        self.shared_log_file = Path(__file__).resolve().parents[3] / "logs" / "payments_core.log"
+        self._shared_file_logger = logging.getLogger(f"{__name__}.shared.{id(self)}")
+        self._shared_file_logger.setLevel(logging.INFO)
+        self._shared_file_logger.propagate = False
+        self._shared_handler: logging.FileHandler | None = None
+        self._shared_file_error: OSError | None = None
         self._finished = False
 
     def __enter__(self) -> Self:
@@ -53,6 +62,20 @@ class ServiceExecutionLogger:
             self.console_logger.exception(
                 "Execution log file unavailable; continuing without file logging: %s",
                 self.log_file,
+            )
+        try:
+            self.shared_log_file.parent.mkdir(parents=True, exist_ok=True)
+            self._shared_handler = logging.FileHandler(
+                self.shared_log_file,
+                mode="a",
+                encoding="utf-8",
+            )
+            self._shared_handler.setFormatter(logging.Formatter("%(message)s"))
+            self._shared_file_logger.addHandler(self._shared_handler)
+        except OSError as exc:
+            self._shared_file_error = exc
+            self.console_logger.exception(
+                "Shared payments-core log unavailable: %s", self.shared_log_file
             )
         self._write(
             logging.INFO,
@@ -116,6 +139,10 @@ class ServiceExecutionLogger:
             self._file_logger.removeHandler(self._handler)
             self._handler.close()
             self._handler = None
+        if self._shared_handler is not None:
+            self._shared_file_logger.removeHandler(self._shared_handler)
+            self._shared_handler.close()
+            self._shared_handler = None
 
         self.console_logger.info(
             "Execution summary: started_at=%s duration_seconds=%.3f "
@@ -144,14 +171,18 @@ class ServiceExecutionLogger:
         return False
 
     def _write(self, level: int, message: str) -> None:
-        if self._handler is None or self._file_error is not None:
-            return
-        self._file_logger.log(
-            level,
-            "%s %s",
-            datetime.now(UTC).isoformat(timespec="milliseconds"),
-            message,
-        )
+        timestamp = datetime.now(UTC).isoformat(timespec="milliseconds")
+        if self._handler is not None and self._file_error is None:
+            self._file_logger.log(level, "%s %s", timestamp, message)
+        if self._shared_handler is not None and self._shared_file_error is None:
+            with _SHARED_LOG_WRITE_LOCK:
+                self._shared_file_logger.log(
+                    level,
+                    "%s service=%s %s",
+                    timestamp,
+                    self.service_name,
+                    message,
+                )
 
     @staticmethod
     def _single_line(value: str) -> str:

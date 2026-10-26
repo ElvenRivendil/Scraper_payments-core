@@ -1,4 +1,5 @@
 # /* ../NauTrader_Helm/payments-core/backend/app/services/OrderPositionExecutionFee/application/services/ResolveExecutionFeeTariffService.py */
+from collections.abc import Callable
 from typing import Literal
 from uuid import UUID
 
@@ -20,9 +21,13 @@ class ResolveExecutionFeeTariffService:
         user_id: UUID,
         mode: Literal["paper", "live", "mock", "backtests"],
         tariff_type: Literal["orders", "positions"],
+        diagnostic_logger: Callable[[str], None] | None = None,
     ) -> ExecutionFeeTariff:
         settings = get_settings()
-        client = HelmApiClient(base_url=settings.helm_auth_base_url)
+        client = HelmApiClient(
+            base_url=settings.helm_auth_base_url,
+            diagnostic_logger=diagnostic_logger,
+        )
         return ResolveExecutionFeeTariffOperation.execute(
             client,
             user_id=user_id,

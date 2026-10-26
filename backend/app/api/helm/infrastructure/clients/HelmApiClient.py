@@ -1,4 +1,6 @@
 # /* ../NauTrader_Helm/payments-core/backend/app/api/helm/infrastructure/clients/HelmApiClient.py */
+from collections.abc import Callable
+from time import perf_counter
 from typing import Any
 from uuid import UUID
 
@@ -11,9 +13,19 @@ class HelmApiClient:
         self,
         base_url: str,
         timeout: float = 3.0,
+        diagnostic_logger: Callable[[str], None] | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.diagnostic_logger = diagnostic_logger
+
+    def _record_diagnostic(self, message: str) -> None:
+        if self.diagnostic_logger is None:
+            return
+        try:
+            self.diagnostic_logger(message)
+        except Exception:
+            pass
 
     def get_user_tariffs(self, authorization: str) -> dict[str, Any]:
         return self._get("/api/user-tariffs", authorization)
@@ -109,16 +121,50 @@ class HelmApiClient:
         if not entity_key.strip():
             raise ValueError("Tariff entity key must not be empty")
 
+        started = perf_counter()
+        self._record_diagnostic(
+            f"Internal tariff HTTP request started: user_id={user_id} "
+            f"entity_key={entity_key} timeout_seconds={self.timeout:.1f}"
+        )
         try:
-            response = httpx.get(
-                f"{self.base_url}/api/internal/user-tariffs/{user_id}/{entity_key}",
-                headers={"X-Helm-Internal-Secret": internal_secret},
-                timeout=self.timeout,
-            )
+            def trace_callback(name, info):
+                elapsed_ms = (perf_counter() - started) * 1000
+                self._record_diagnostic(
+                    f"Internal tariff HTTP trace: user_id={user_id} "
+                    f"entity_key={entity_key} trace_event={name} "
+                    f"elapsed_ms={elapsed_ms:.1f} trace_info={info!r}"
+                )
+
+            with httpx.Client(timeout=self.timeout) as client:
+                request = client.build_request(
+                    "GET",
+                    f"{self.base_url}/api/internal/user-tariffs/{user_id}/{entity_key}",
+                    headers={"X-Helm-Internal-Secret": internal_secret},
+                )
+                request.extensions["trace"] = trace_callback
+                response = client.send(request)
         except httpx.TimeoutException:
+            elapsed_ms = (perf_counter() - started) * 1000
+            self._record_diagnostic(
+                f"Internal tariff HTTP request timed out: user_id={user_id} "
+                f"entity_key={entity_key} elapsed_ms={elapsed_ms:.1f}"
+            )
             raise RuntimeError("Helm internal tariff request timed out") from None
-        except httpx.RequestError:
+        except httpx.RequestError as error:
+            elapsed_ms = (perf_counter() - started) * 1000
+            self._record_diagnostic(
+                f"Internal tariff HTTP request failed: user_id={user_id} "
+                f"entity_key={entity_key} exception_type={type(error).__name__} "
+                f"elapsed_ms={elapsed_ms:.1f}"
+            )
             raise RuntimeError("Helm internal tariff service is unavailable") from None
+
+        elapsed_ms = (perf_counter() - started) * 1000
+        self._record_diagnostic(
+            f"Internal tariff HTTP response received: user_id={user_id} "
+            f"entity_key={entity_key} status_code={response.status_code} "
+            f"elapsed_ms={elapsed_ms:.1f}"
+        )
 
         if response.status_code == 404:
             raise LookupError("Helm user tariff profile or entity was not found")

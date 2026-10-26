@@ -55,6 +55,7 @@ class ExecuteOrderPositionExecutionFeeService:
                     user_id=user_id,
                     mode=mode,
                     tariff_type=tariff_type,
+                    diagnostic_logger=execution.record_event,
                 )
             except Exception as error:
                 execution.record_error(
